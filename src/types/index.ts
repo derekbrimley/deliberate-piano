@@ -56,6 +56,14 @@ export interface AnnotationStroke {
   points: number[]; // flat [x0, y0, x1, y1, ...]
 }
 
+// Anything that can have sheet music attached: a goal or a repertoire piece
+export interface SheetMusicOwner {
+  kind: 'goal' | 'repertoire';
+  id: string;
+  name: string;
+  sheetMusic?: SheetMusic;
+}
+
 // All annotations for one goal's sheet music, keyed by page number (1-based)
 export interface SheetMusicAnnotations {
   version: 1;
@@ -98,6 +106,7 @@ export interface RepertoirePiece {
   lastPlayedDate?: Date;
   practiceHistory: Date[]; // all dates this piece was practiced, in reverse chronological order
   createdAt: Date;
+  sheetMusic?: SheetMusic;
 }
 
 // Session Log Details - represents a practiced section (either a goal or sub-goal)

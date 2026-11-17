@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import {
   Box,
   Button,
@@ -10,9 +10,13 @@ import {
 } from '@mui/joy';
 import { useTimer } from '../../hooks/useTimer';
 import { formatTimeMinutesSecondsCompact, formatDate } from '../../utils/formatting';
-import { PauseIcon, PlayIcon, SkipForwardIcon, CheckIcon } from 'lucide-react';
+import { PauseIcon, PlayIcon, SkipForwardIcon, CheckIcon, BookOpen } from 'lucide-react';
 import { RepertoirePiece } from '../../types';
 import { ScaleKey, formatScaleDisplay } from '../../utils/scales';
+import { useAuth } from '../../context/AuthContext';
+import { ViewerSessionControls } from '../SheetMusic/ViewerSessionControls';
+
+const SheetMusicViewer = lazy(() => import('../SheetMusic/SheetMusicViewer'));
 
 type WarmupSubPhase = 'scales' | 'repertoire';
 
@@ -30,6 +34,8 @@ export const WarmupPhase: React.FC<WarmupPhaseProps> = ({
   onComplete
 }) => {
   const [subPhase, setSubPhase] = useState<WarmupSubPhase>('scales');
+  const [sheetMusicOpen, setSheetMusicOpen] = useState(false);
+  const { user } = useAuth();
 
   // The configured warmup time covers the whole warmup: split it between scales
   // and repertoire review (scales get all of it when there's no piece to review).
@@ -48,6 +54,7 @@ export const WarmupPhase: React.FC<WarmupPhaseProps> = ({
     }
     restart(repertoireDuration);
     setSubPhase('repertoire');
+    setSheetMusicOpen(!!warmupRepertoirePiece.sheetMusic); // open the score automatically
   };
 
   const handleRepertoireComplete = (repertoireId?: string) => {
@@ -189,6 +196,43 @@ export const WarmupPhase: React.FC<WarmupPhaseProps> = ({
                 Skip
               </Button>
             </Stack>
+
+            {warmupRepertoirePiece.sheetMusic && (
+              <Button
+                fullWidth
+                size="lg"
+                variant="outlined"
+                color="neutral"
+                startDecorator={<BookOpen size={20} />}
+                onClick={() => setSheetMusicOpen(true)}
+                sx={{ mb: 3 }}
+              >
+                Open sheet music
+              </Button>
+            )}
+            {sheetMusicOpen && warmupRepertoirePiece.sheetMusic && user && (
+              <Suspense fallback={null}>
+                <SheetMusicViewer
+                  uid={user.uid}
+                  owner={{
+                    kind: 'repertoire',
+                    id: warmupRepertoirePiece.id,
+                    name: warmupRepertoirePiece.name,
+                    sheetMusic: warmupRepertoirePiece.sheetMusic,
+                  }}
+                  onClose={() => setSheetMusicOpen(false)}
+                  toolbarExtra={
+                    <ViewerSessionControls
+                      timeRemaining={timeRemaining}
+                      isRunning={isRunning}
+                      onToggleTimer={() => (isRunning ? pause() : start())}
+                      actionLabel="Done"
+                      onAction={() => handleRepertoireComplete(warmupRepertoirePiece.id)}
+                    />
+                  }
+                />
+              </Suspense>
+            )}
 
             <Alert color="primary">
               <Typography level="body-sm">

@@ -583,7 +583,7 @@ export const GoalsTab: React.FC<GoalsTabProps> = ({ goals, onGoalsUpdated }) => 
 
             {/* Sheet music */}
             {(goal.type === 'piece' || goal.type === 'technical') && user && (
-              <SheetMusicControl uid={user.uid} goal={goal} onChanged={onGoalsUpdated} />
+              <SheetMusicControl uid={user.uid} owner={{ kind: 'goal', id: goal.id, name: goal.name, sheetMusic: goal.sheetMusic }} onChanged={onGoalsUpdated} />
             )}
             {usesMusicTheoryExercise(goal) && (
               <MusicTheoryExerciseControl key={goal.musicTheoryExerciseUrl || ''} goal={goal} onChanged={onGoalsUpdated} />

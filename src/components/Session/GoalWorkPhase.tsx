@@ -18,7 +18,6 @@ import {
   Modal,
   ModalDialog,
   Input,
-  IconButton,
 } from '@mui/joy';
 import { Goal, PlannedSection, SessionLogSection } from '../../types';
 import { useTimer } from '../../hooks/useTimer';
@@ -32,6 +31,7 @@ import { CreateGoalModal } from '../Profile/CreateGoalModal';
 import { MusicTheoryExercise } from '../MusicTheory/MusicTheoryExercise';
 import { usesMusicTheoryExercise } from '../../utils/musicTheory';
 import { useAuth } from '../../context/AuthContext';
+import { ViewerSessionControls } from '../SheetMusic/ViewerSessionControls';
 
 const SheetMusicViewer = lazy(() => import('../SheetMusic/SheetMusicViewer'));
 
@@ -416,25 +416,16 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
             <Suspense fallback={null}>
               <SheetMusicViewer
                 uid={user.uid}
-                goal={currentGoal}
+                owner={{ kind: 'goal', id: currentGoal.id, name: currentGoal.name, sheetMusic: currentGoal.sheetMusic }}
                 onClose={() => setSheetMusicOpen(false)}
                 toolbarExtra={
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography level="title-lg" sx={{ fontVariantNumeric: 'tabular-nums' }}>
-                      {formatTimeMinutesSecondsCompact(timeRemaining)}
-                    </Typography>
-                    <IconButton
-                      variant="outlined"
-                      onClick={() => (isRunning ? pause() : start())}
-                      aria-label={isRunning ? 'Pause timer' : 'Resume timer'}
-                      sx={{ minWidth: 44, minHeight: 44 }}
-                    >
-                      {isRunning ? <PauseIcon size={20} /> : <PlayIcon size={20} />}
-                    </IconButton>
-                    <Button variant="solid" color="neutral" onClick={() => setSheetMusicOpen(false)} sx={{ minHeight: 44 }}>
-                      Notes &amp; next
-                    </Button>
-                  </Box>
+                  <ViewerSessionControls
+                    timeRemaining={timeRemaining}
+                    isRunning={isRunning}
+                    onToggleTimer={() => (isRunning ? pause() : start())}
+                    actionLabel="Notes"
+                    onAction={() => setSheetMusicOpen(false)}
+                  />
                 }
               />
             </Suspense>
