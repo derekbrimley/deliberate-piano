@@ -171,6 +171,15 @@ export const App: React.FC = () => {
     );
   }
 
+  // Current page is marked by a thick underline and bold text, not a fill color
+  const navButtonSx = {
+    color: 'white',
+    borderRadius: 0,
+    borderBottom: '3px solid transparent',
+    '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' },
+    '&[aria-current="page"]': { borderBottomColor: 'white', fontWeight: 700 },
+  };
+
   // Navigation bar for authenticated users
   const showNav = user && appState !== 'auth' && appState !== 'onboarding' && appState !== 'session-flow';
 
@@ -202,26 +211,29 @@ export const App: React.FC = () => {
 
               <Stack direction="row" spacing={1}>
                 <Button
-                  variant={appState === 'main' ? 'soft' : 'plain'}
+                  variant="plain"
+                  aria-current={appState === 'main' ? 'page' : undefined}
                   startDecorator={<HomeIcon size={20} />}
                   onClick={handleNavigateToMain}
-                  sx={{ color: 'white' }}
+                  sx={navButtonSx}
                 >
                   Today
                 </Button>
                 <Button
-                  variant={appState === 'session-history' ? 'soft' : 'plain'}
+                  variant="plain"
+                  aria-current={appState === 'session-history' ? 'page' : undefined}
                   startDecorator={<HistoryIcon size={20} />}
                   onClick={handleNavigateToHistory}
-                  sx={{ color: 'white' }}
+                  sx={navButtonSx}
                 >
                   History
                 </Button>
                 <Button
-                  variant={appState === 'profile' ? 'soft' : 'plain'}
+                  variant="plain"
+                  aria-current={appState === 'profile' ? 'page' : undefined}
                   startDecorator={<SettingsIcon size={20} />}
                   onClick={handleNavigateToProfile}
-                  sx={{ color: 'white' }}
+                  sx={navButtonSx}
                 >
                   Settings
                 </Button>

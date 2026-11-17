@@ -10,10 +10,14 @@ import {
   FormLabel,
   Alert,
   Select,
-  Option
+  Option,
+  Radio,
+  RadioGroup
 } from '@mui/joy';
 import { UserProfile } from '../../types';
 import { updateUserProfile } from '../../services/firebase';
+import { useThemeChoice } from '../../context/ThemeChoiceContext';
+import { ThemeChoice } from '../../theme';
 
 interface SettingsTabProps {
   userProfile: UserProfile;
@@ -31,6 +35,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ userProfile, onSetting
   const [defaultSessionDuration, setDefaultSessionDuration] = useState(
     userProfile.defaultSessionDuration || 30
   );
+  const { choice: look, setChoice: setLook } = useThemeChoice();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -101,6 +106,26 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ userProfile, onSetting
             >
               Save Settings
             </Button>
+          </Box>
+
+          <Box>
+            <Typography level="h4" sx={{ mb: 1 }}>
+              Display
+            </Typography>
+            <FormControl>
+              <FormLabel>Look on this device</FormLabel>
+              <RadioGroup
+                value={look}
+                onChange={e => setLook(e.target.value as ThemeChoice)}
+                sx={{ gap: 1.5, mt: 1 }}
+              >
+                <Radio value="paper" label="Paper: black on white, for the Daylight DC-1" />
+                <Radio value="color" label="Color: terracotta and sage" />
+              </RadioGroup>
+              <Typography level="body-sm" sx={{ mt: 1 }}>
+                Saved on this device only, so a phone can use Color while the tablet stays on Paper.
+              </Typography>
+            </FormControl>
           </Box>
         </Stack>
       </CardContent>

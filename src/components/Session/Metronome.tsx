@@ -92,16 +92,18 @@ export const Metronome: React.FC<MetronomeProps> = ({ suggestedBpm }) => {
         </Box>
 
         {/* Beat indicator */}
-        <Stack direction="row" spacing={1} sx={{ justifyContent: 'center' }}>
+        <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', alignItems: 'center' }}>
           {Array.from({ length: m.beatsPerBar }).map((_, i) => (
             <Box
               key={i}
               sx={{
-                width: 14,
-                height: 14,
+                // Downbeat is bigger; the current beat is filled (shape, not color, so it reads on monochrome screens)
+                width: i === 0 ? 20 : 14,
+                height: i === 0 ? 20 : 14,
                 borderRadius: '50%',
-                bgcolor: m.currentBeat === i ? (i === 0 ? 'primary.500' : 'neutral.500') : 'neutral.200',
-                transition: 'background-color 40ms',
+                border: '2px solid',
+                borderColor: i === 0 ? 'primary.500' : 'neutral.500',
+                bgcolor: m.currentBeat === i ? (i === 0 ? 'primary.500' : 'neutral.500') : 'transparent',
               }}
             />
           ))}

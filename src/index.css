@@ -2,9 +2,15 @@
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
+}
 
-  color: #2d382a;
-  background-color: #EFE4D2;
+/* Paper look (DC-1): solid selection, no tap flash */
+:root[data-look="paper"] {
+  -webkit-tap-highlight-color: transparent;
+}
+:root[data-look="paper"] ::selection {
+  background: #000;
+  color: #fff;
 }
 
 * {

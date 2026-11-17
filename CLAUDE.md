@@ -24,10 +24,11 @@ There are no tests and no linter. `npm run build` is the only validation (TypeSc
 
 - **AuthContext** (`src/context/AuthContext.tsx`): Provides `user` (Firebase User) and `userProfile` (Firestore UserProfile) to the entire app.
 - **ToastContext** (`src/context/ToastContext.tsx`): Joy UI Snackbar notification system. Use `useToast()` hook — exports `showToast()`, `showSuccess()`, `showError()`, `showWarning()`, `showInfo()`. Single toast, 3-second auto-hide.
-- **Provider Hierarchy**: `CssVarsProvider` → `AuthProvider` → `ToastProvider` → `App` (see `src/main.tsx`)
+- **ThemeChoiceContext** (`src/context/ThemeChoiceContext.tsx`): `useThemeChoice()` → `{ choice: 'paper' | 'color', setChoice }`, stored per device in localStorage; wraps `CssVarsProvider` + `CssBaseline`.
+- **Provider Hierarchy**: `ThemeChoiceProvider` (Joy `CssVarsProvider`) → `AuthProvider` → `ToastProvider` → `App` (see `src/main.tsx`)
 - **App.tsx**: Central state machine with states: `loading`, `auth`, `onboarding`, `main`, `session-flow`, `session-history`, `profile`
 
-AuthContext and ToastContext are the only React Contexts — no Redux/Zustand.
+AuthContext, ToastContext and ThemeChoiceContext are the only React Contexts — no Redux/Zustand.
 
 ### Navigation
 
@@ -117,7 +118,9 @@ Note history: `noteHistory` is `{ note: string, date: Timestamp }[]`, reverse ch
 
 ## Theme & Styling
 
-Custom Joy UI theme — Primary: `#BB5C4F` (terracotta), Neutral: `#5C7658` (sage green), Success: `#AEC8A4` (light green), Background: `#EFE4D2` (cream).
+Themes live in `src/theme.ts`. **Paper** (default) is built for the DC-1: every Joy palette (primary/neutral/success/warning/danger) is black ink on white with one light grey (`#e6e6e6`) for hover/soft fills, no shadows, no blurred modal/drawer backdrops, drawers open without sliding, 2px black borders on cards/inputs/outlined buttons, and alerts/toasts get a leading ✓ or ! mark since color can't tell them apart. **Color** (Settings → Display, per device) keeps the original palette — Primary `#BB5C4F` (terracotta), Neutral `#5C7658` (sage), Success `#AEC8A4`, Background `#EFE4D2` (cream). Both share bigger type (`fontSize` sm = 16px, md = 18px) and 44px+ buttons/inputs, 40px for `size="sm"`.
+
+When adding UI: show state with borders, weight, icons or text, never color alone; use theme tokens (`primary.500`, `neutral.500`, `background.surface`) rather than hex so both looks work.
 
 ## Environment Setup
 
