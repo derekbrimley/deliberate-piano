@@ -1,13 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Box, CircularProgress, IconButton, Modal, ToggleButtonGroup, Typography } from '@mui/joy';
 import {
-  ChevronLeft,
-  ChevronRight,
   Eraser,
   Hand,
-  Highlighter,
-  Maximize2,
-  Minimize2,
   PenLine,
   Trash2,
   Undo2,
@@ -21,7 +16,7 @@ import { loadAnnotations, loadSheetMusicPdf, saveAnnotations } from '../../servi
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-type Tool = 'view' | 'pen' | 'highlighter' | 'eraser';
+type Tool = 'view' | 'pen' | 'eraser';
 type SaveStatus = 'saved' | 'pending' | 'saving' | 'error';
 
 /** z = 1 means the page fills the screen width; ox/oy is the page's top-left corner in screen px. */
@@ -32,7 +27,6 @@ interface View {
 }
 
 const PEN_WIDTH = 0.0025; // fraction of page width at fit-width zoom
-const HIGHLIGHTER_WIDTH = 0.018;
 const ERASER_RADIUS_PX = 14;
 const MAX_ZOOM = 5;
 const SAVE_DEBOUNCE_MS = 1500;
@@ -81,11 +75,11 @@ interface SheetMusicViewerProps {
   onClose: () => void;
   /** Rendered at the right end of the toolbar, e.g. the section timer. */
   toolbarExtra?: React.ReactNode;
-  banner?: React.ReactNode; // shown under the toolbar, e.g. the current practice focus
+  focusControls?: React.ReactNode; // in the toolbar, e.g. the current practice focus + Next focus
 }
 
 /**
- * Full-screen PDF viewer with pen/highlighter annotations, built for a stylus tablet.
+ * Full-screen PDF viewer with pen annotations (older highlighter strokes still render), built for a stylus tablet.
  *
  * Hand mode: swipe left/right to turn pages, pinch to zoom, drag to pan,
  * tap the middle to hide/show the toolbar, tap the outer edges to turn pages.
@@ -93,7 +87,7 @@ interface SheetMusicViewerProps {
  * rejection); two fingers still pinch and pan so you can zoom while annotating.
  * Arrow and PageUp/PageDown keys (Bluetooth page-turn pedals) also turn pages.
  */
-export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, onClose, toolbarExtra, banner }) => {
+export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, onClose, toolbarExtra, focusControls }) => {
   const sheetMusic = owner.sheetMusic;
   const ownerRef = { kind: owner.kind, id: owner.id };
 
@@ -106,7 +100,6 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [confirmClear, setConfirmClear] = useState(false);
   const [chromeVisible, setChromeVisible] = useState(true);
-  const [zoomedIn, setZoomedIn] = useState(false); // for the fit button's icon
   const [, forceRender] = useState(0);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -356,7 +349,6 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
 
   const setView = (v: View, rerender: 'debounced' | 'now' = 'debounced') => {
     viewRef.current = clampView(v);
-    setZoomedIn(viewRef.current.z > 1.01);
     scheduleFrame(rerender);
   };
 
@@ -406,8 +398,7 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
         ctx.fillRect(0, 0, pdfCanvasRef.current.width, pdfCanvasRef.current.height);
       }
       viewRef.current = clampView({ ...viewRef.current, oy: 0 });
-      setZoomedIn(viewRef.current.z > 1.01);
-      scheduleFrame('now');
+        scheduleFrame('now');
       setPageReady(true);
     })();
     return () => {
@@ -461,18 +452,6 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [pdf]);
-
-  const toggleFit = () => {
-    const { cw } = sizeRef.current;
-    const v = viewRef.current;
-    if (v.z > 1.01) {
-      setView({ z: 1, ox: 0, oy: (v.oy / v.z) * 1 }, 'now'); // back to full width
-    } else if (v.z >= 0.99 && minZoom() < 0.99) {
-      setView({ z: minZoom(), ox: 0, oy: 0 }, 'now'); // whole page
-    } else {
-      setView({ z: 1, ox: (cw - cw) / 2, oy: 0 }, 'now'); // full width
-    }
-  };
 
   // ---------- Annotation edits ----------
   const pushUndo = () => {
@@ -572,9 +551,9 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
       currentStrokeRef.current = {
         pointerId: e.pointerId,
         stroke: {
-          tool: t === 'highlighter' ? 'highlighter' : 'pen',
+          tool: 'pen',
           // Thinner lines when zoomed in, so zooming gives precision rather than fat strokes
-          width: (t === 'highlighter' ? HIGHLIGHTER_WIDTH : PEN_WIDTH) / Math.max(1, z),
+          width: PEN_WIDTH / Math.max(1, z),
           points: [x, y],
         },
       };
@@ -788,23 +767,9 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
             {owner.name}
           </Typography>
 
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <IconButton variant="plain" onClick={() => goTo(page - 1)} disabled={page <= 1} aria-label="Previous page" sx={btn}>
-              <ChevronLeft size={22} />
-            </IconButton>
-            <Typography level="body-sm" sx={{ minWidth: 44, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
-              {numPages ? `${page}/${numPages}` : '–'}
-            </Typography>
-            <IconButton
-              variant="plain"
-              onClick={() => goTo(page + 1)}
-              disabled={!numPages || page >= numPages}
-              aria-label="Next page"
-              sx={btn}
-            >
-              <ChevronRight size={22} />
-            </IconButton>
-          </Box>
+          <Typography level="body-sm" sx={{ minWidth: 44, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
+            {numPages ? `${page}/${numPages}` : '–'}
+          </Typography>
 
           <ToggleButtonGroup
             value={tool}
@@ -817,9 +782,6 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
             </IconButton>
             <IconButton value="pen" aria-label="Pen" sx={btn}>
               <PenLine size={19} />
-            </IconButton>
-            <IconButton value="highlighter" aria-label="Highlighter" sx={btn}>
-              <Highlighter size={19} />
             </IconButton>
             <IconButton value="eraser" aria-label="Eraser" sx={btn}>
               <Eraser size={19} />
@@ -838,14 +800,6 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
           >
             {confirmClear ? <Typography level="body-xs" sx={{ color: '#fff' }}>Clear?</Typography> : <Trash2 size={19} />}
           </IconButton>
-          <IconButton
-            variant="outlined"
-            onClick={toggleFit}
-            aria-label={zoomedIn ? 'Fit to width' : 'Toggle full width / whole page'}
-            sx={btn}
-          >
-            {zoomedIn ? <Minimize2 size={19} /> : <Maximize2 size={19} />}
-          </IconButton>
           <Typography
             level="body-xs"
             title={saveLabel[saveStatus]}
@@ -855,12 +809,8 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
           </Typography>
 
           <Box sx={{ flex: '1 1 auto' }} />
+          {focusControls}
           {toolbarExtra}
-        </Box>
-      )}
-      {chromeVisible && banner && (
-        <Box sx={{ px: 1.5, py: 0.5, borderBottom: '2px solid #000', bgcolor: '#fff', color: '#000', flexShrink: 0 }}>
-          {banner}
         </Box>
       )}
 

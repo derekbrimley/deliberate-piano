@@ -76,6 +76,7 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
   const isDeepListening = goal.type === 'ear-training' && goal.earTrainingType === 'deep-listening';
   // A whole-piece block for a goal with open sub-goals can't be "done" as a whole
   const showStatus = !isDeepListening && !(!focus && openSubGoals(goal).length > 0);
+  const sideBySide = usesMusicTheoryExercise(goal);
   const focusLabel = focus
     ? focuses.length > 1
       ? `Focus ${focusIndex + 1}/${focuses.length}: ${focus.name}`
@@ -163,6 +164,119 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
       />
 
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+        {sideBySide ? (
+          // Exercise on the left, notes on the right: no scrolling to see both
+          <Box
+            sx={{
+              p: 2,
+              display: 'grid',
+              gap: 2,
+              alignItems: 'start',
+              gridTemplateColumns: '1fr',
+              '@media (min-width: 940px)': { gridTemplateColumns: 'minmax(600px, 1fr) minmax(280px, 360px)' },
+            }}
+          >
+            <MusicTheoryExercise goal={goal} />
+            <Stack spacing={2}>
+                {focuses.length > 1 && (
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+                    {focuses.map((f, i) => (
+                      <Button
+                        key={f.id}
+                        variant={i === focusIndex ? 'solid' : 'outlined'}
+                        color="neutral"
+                        onClick={() => goToFocus(i)}
+                        startDecorator={i <= visited && entries[i].status === 'complete' ? <CheckIcon size={16} /> : undefined}
+                        sx={{ minHeight: 44, ...(i === focusIndex && { bgcolor: '#000' }) }}
+                      >
+                        {i + 1}. {f.name}
+                      </Button>
+                    ))}
+                  </Stack>
+                )}
+
+                <Box sx={{ border: '2px solid', borderColor: 'neutral.outlinedBorder', borderRadius: 'md', p: 2 }}>
+                  <Stack spacing={2}>
+                    {focus && (
+                      <Box>
+                        {focuses.length > 1 && (
+                          <Typography level="body-sm">Focus {focusIndex + 1} of {focuses.length}</Typography>
+                        )}
+                        <Typography level="h3">{focus.name}</Typography>
+                      </Box>
+                    )}
+
+                    {history.length > 0 && (
+                      <Box>
+                        <Button
+                          variant="plain"
+                          color="neutral"
+                          onClick={() => setHistoryOpen(o => !o)}
+                          startDecorator={historyOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                          sx={{ px: 0 }}
+                        >
+                          {historyOpen ? 'Previous notes' : `Last note: ${history[0].note.length > 60 ? history[0].note.slice(0, 60) + '…' : history[0].note}`}
+                        </Button>
+                        {historyOpen && (
+                          <Stack spacing={1} sx={{ mt: 1 }}>
+                            {history.map((h, i) => (
+                              <Box key={i} sx={{ pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+                                <Typography level="body-xs">{formatDateTime(h.date)}</Typography>
+                                <Typography level="body-sm">{h.note}</Typography>
+                              </Box>
+                            ))}
+                          </Stack>
+                        )}
+                      </Box>
+                    )}
+
+                    <Textarea
+                      placeholder="Notes for next time…"
+                      value={entry.notes}
+                      onChange={e => setEntry({ notes: e.target.value })}
+                      minRows={2}
+                      size="lg"
+                    />
+
+                    <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1.5 }}>
+                      {showStatus && (
+                        <RadioGroup
+                          orientation="horizontal"
+                          value={entry.status}
+                          onChange={e => setEntry({ status: e.target.value as Status })}
+                          sx={{ gap: 2, flex: 1 }}
+                        >
+                          <Radio value="needs_work" label="Needs work" />
+                          <Radio value="complete" label="Done" />
+                        </RadioGroup>
+                      )}
+                    </Stack>
+                  </Stack>
+                </Box>
+
+                {!isDeepListening && (
+                  <Box>
+                    {!recorder.isRecording && !recorder.audioURL && (
+                      <Button variant="outlined" color="neutral" startDecorator={<MicIcon size={18} />} onClick={recorder.startRecording} sx={{ minHeight: 44 }}>
+                        Record yourself
+                      </Button>
+                    )}
+                    {recorder.isRecording && (
+                      <Button variant="solid" color="danger" startDecorator={<StopCircleIcon size={18} />} onClick={recorder.stopRecording} sx={{ minHeight: 44 }}>
+                        Stop recording
+                      </Button>
+                    )}
+                    {recorder.audioURL && (
+                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                        <audio src={recorder.audioURL} controls style={{ flex: 1 }} />
+                        <Button variant="plain" color="neutral" onClick={recorder.discardRecording}>Discard</Button>
+                      </Stack>
+                    )}
+                  </Box>
+                )}
+            </Stack>
+          </Box>
+        ) : (
         <Stack spacing={2.5} sx={{ p: 2, maxWidth: 820, mx: 'auto' }}>
           {focuses.length > 1 && (
             <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
@@ -236,17 +350,6 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
                     <Radio value="complete" label="Done" />
                   </RadioGroup>
                 )}
-                {focusIndex < focuses.length - 1 && (
-                  <Button
-                    variant="outlined"
-                    color="neutral"
-                    endDecorator={<ChevronRight size={18} />}
-                    onClick={() => goToFocus(focusIndex + 1)}
-                    sx={{ minHeight: 48, ml: 'auto' }}
-                  >
-                    Next focus
-                  </Button>
-                )}
               </Stack>
             </Stack>
           </Box>
@@ -269,10 +372,12 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
                 uid={uid}
                 owner={{ kind: 'goal', id: goal.id, name: goal.name, sheetMusic: goal.sheetMusic }}
                 onClose={() => setSheetMusicOpen(false)}
-                banner={
+                focusControls={
                   focusLabel && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Typography level="title-md" noWrap sx={{ flex: 1, minWidth: 0 }}>{focusLabel}</Typography>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: '1 !important', minWidth: 0 }}>
+                      <Typography level="title-sm" noWrap sx={{ minWidth: 0, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {focusLabel}
+                      </Typography>
                       {focusIndex < focuses.length - 1 && (
                         <Button
                           size="sm"
@@ -280,7 +385,7 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
                           color="neutral"
                           endDecorator={<ChevronRight size={16} />}
                           onClick={() => goToFocus(focusIndex + 1)}
-                          sx={{ minHeight: 40 }}
+                          sx={{ minHeight: 40, flexShrink: 0 }}
                         >
                           Next focus
                         </Button>
@@ -317,7 +422,6 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
             </Box>
           )}
 
-          {usesMusicTheoryExercise(goal) && <MusicTheoryExercise goal={goal} />}
 
           {isDeepListening && (
             <Stack spacing={1.5}>
@@ -376,6 +480,7 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
             </Box>
           )}
         </Stack>
+        )}
       </Box>
 
       <BlockFooter isLast={isLast} onNext={handleNext} onSkip={() => onDone([])} busy={busy} />
