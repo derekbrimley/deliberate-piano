@@ -1,10 +1,8 @@
 import React, { Suspense, lazy, useState } from 'react';
-import { Box, Checkbox, IconButton, Stack, Typography } from '@mui/joy';
+import { Box, Button, Stack, Typography } from '@mui/joy';
 import { BookOpen } from 'lucide-react';
 import { RepertoirePiece } from '../../types';
 import { useTimer } from '../../hooks/useTimer';
-import { sortByLeastRecentlyPlayed } from '../../utils/repertoire';
-import { getDaysSince } from '../../utils/formatting';
 import { ViewerSessionControls } from '../SheetMusic/ViewerSessionControls';
 import { BlockFooter, BlockHeader } from './BlockChrome';
 
@@ -18,25 +16,17 @@ interface FreePlayBlockProps {
   total: number;
   isLast: boolean;
   onExit: () => void;
-  onDone: (playedPieceIds: string[]) => void;
+  onDone: () => void;
 }
 
-/** Free play: play anything from your repertoire and tick what you played. */
+/** Free play is just for fun: your repertoire list, nothing to log. */
 export const FreePlayBlock: React.FC<FreePlayBlockProps> = ({
   uid, minutes, pieces, position, total, isLast, onExit, onDone,
 }) => {
   const { timeRemaining, isRunning, start, pause } = useTimer({ duration: minutes * 60, autoStart: true });
   const toggle = () => (isRunning ? pause() : start());
-  const [played, setPlayed] = useState<Set<string>>(new Set());
   const [viewing, setViewing] = useState<RepertoirePiece | null>(null);
-
-  const setPiecePlayed = (id: string, on: boolean) =>
-    setPlayed(prev => {
-      const next = new Set(prev);
-      if (on) next.add(id);
-      else next.delete(id);
-      return next;
-    });
+  const sorted = [...pieces].sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <>
@@ -44,33 +34,30 @@ export const FreePlayBlock: React.FC<FreePlayBlockProps> = ({
         position={position}
         total={total}
         title="Free play"
-        subtitle="Tick what you played"
+        subtitle="Play whatever you like"
         timer={{ timeRemaining, isRunning, toggle }}
         onExit={onExit}
       />
 
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
-        <Stack spacing={0} sx={{ p: 2, maxWidth: 820, mx: 'auto' }}>
-          {pieces.length === 0 && <Typography>No repertoire yet. Add pieces from Today.</Typography>}
-          {sortByLeastRecentlyPlayed(pieces).map(piece => (
+        <Stack sx={{ p: 2, maxWidth: 820, mx: 'auto' }}>
+          {sorted.length === 0 && <Typography>No repertoire yet. Add pieces from Today.</Typography>}
+          {sorted.map(piece => (
             <Box
               key={piece.id}
               sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1, borderBottom: '1px solid', borderColor: 'divider', minHeight: 56 }}
             >
-              <Checkbox
-                size="lg"
-                checked={played.has(piece.id)}
-                onChange={e => setPiecePlayed(piece.id, e.target.checked)}
-                label={piece.name}
-                sx={{ flex: 1 }}
-              />
-              <Typography level="body-sm" sx={{ color: 'text.secondary' }}>
-                {piece.lastPlayedDate ? `${getDaysSince(piece.lastPlayedDate)}d ago` : 'never'}
-              </Typography>
+              <Typography level="title-md" sx={{ flex: 1 }}>{piece.name}</Typography>
               {piece.sheetMusic && (
-                <IconButton variant="outlined" color="neutral" onClick={() => setViewing(piece)} aria-label={`Open ${piece.name} sheet music`} sx={{ minWidth: 44, minHeight: 44 }}>
-                  <BookOpen size={18} />
-                </IconButton>
+                <Button
+                  variant="outlined"
+                  color="neutral"
+                  startDecorator={<BookOpen size={18} />}
+                  onClick={() => setViewing(piece)}
+                  sx={{ minHeight: 44 }}
+                >
+                  Open
+                </Button>
               )}
             </Box>
           ))}
@@ -88,18 +75,15 @@ export const FreePlayBlock: React.FC<FreePlayBlockProps> = ({
                 timeRemaining={timeRemaining}
                 isRunning={isRunning}
                 onToggleTimer={toggle}
-                actionLabel="Played"
-                onAction={() => {
-                  setPiecePlayed(viewing.id, true);
-                  setViewing(null);
-                }}
+                actionLabel="List"
+                onAction={() => setViewing(null)}
               />
             }
           />
         </Suspense>
       )}
 
-      <BlockFooter isLast={isLast} onNext={() => onDone([...played])} onSkip={() => onDone([])} />
+      <BlockFooter isLast={isLast} onNext={onDone} />
     </>
   );
 };

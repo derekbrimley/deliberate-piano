@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { Box, CircularProgress, IconButton, ToggleButtonGroup, Typography } from '@mui/joy';
+import { Box, CircularProgress, IconButton, Modal, ToggleButtonGroup, Typography } from '@mui/joy';
 import {
   ChevronLeft,
   ChevronRight,
@@ -82,6 +81,7 @@ interface SheetMusicViewerProps {
   onClose: () => void;
   /** Rendered at the right end of the toolbar, e.g. the section timer. */
   toolbarExtra?: React.ReactNode;
+  banner?: React.ReactNode; // shown under the toolbar, e.g. the current practice focus
 }
 
 /**
@@ -93,7 +93,7 @@ interface SheetMusicViewerProps {
  * rejection); two fingers still pinch and pan so you can zoom while annotating.
  * Arrow and PageUp/PageDown keys (Bluetooth page-turn pedals) also turn pages.
  */
-export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, onClose, toolbarExtra }) => {
+export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, onClose, toolbarExtra, banner }) => {
   const sheetMusic = owner.sheetMusic;
   const ownerRef = { kind: owner.kind, id: owner.id };
 
@@ -744,14 +744,16 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
   // ---------- UI ----------
   const btn = { minWidth: 40, minHeight: 40, '--IconButton-size': '40px' };
 
-  // Portal to <body> so no ancestor's stacking context (cards, accordions)
-  // can paint over the viewer. The metronome (z 1100) still floats above it.
-  return createPortal(
+  // A Modal of its own: portaled to <body> and stacked above whatever opened it
+  // (e.g. the goal side panel), which keeps its focus trap and Escape key from
+  // closing things underneath. The metronome (z 1310) still floats above it.
+  return (
+    <Modal open onClose={() => void handleClose()} hideBackdrop disableAutoFocus>
     <Box
       sx={{
         position: 'fixed',
         inset: 0,
-        zIndex: 1050,
+        outline: 'none',
         isolation: 'isolate',
         bgcolor: '#fff',
         color: '#000',
@@ -856,6 +858,11 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
           {toolbarExtra}
         </Box>
       )}
+      {chromeVisible && banner && (
+        <Box sx={{ px: 1.5, py: 0.5, borderBottom: '2px solid #000', bgcolor: '#fff', color: '#000', flexShrink: 0 }}>
+          {banner}
+        </Box>
+      )}
 
       {/* Page */}
       <Box ref={containerRef} sx={{ flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', bgcolor: '#fff' }}>
@@ -895,8 +902,8 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
           </Typography>
         )}
       </Box>
-    </Box>,
-    document.body
+    </Box>
+    </Modal>
   );
 };
 

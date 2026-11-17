@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Box,
@@ -20,6 +20,7 @@ import { ActiveSession, Goal, GoalType, PracticeSessionLog, RepertoirePiece, Ses
 import {
   addRepertoirePiece,
   createGoal,
+  deleteGoal,
   getGoals,
   getPracticeSessions,
   getRepertoirePieces,
@@ -31,20 +32,24 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { getNextScale } from '../utils/scales';
-import { getNextWarmupRepertoire, sortByLeastRecentlyPlayed } from '../utils/repertoire';
+import { getNextWarmupRepertoire } from '../utils/repertoire';
 import { getNextTechniqueExercises } from '../utils/techniques';
 import {
   DEFAULT_BLOCK_MINUTES,
-  getFocusSubGoal,
+  describeFocuses,
+  getFocuses,
+  getPickedFocuses,
   goalMinutes,
   hasSubGoals,
+  isGoalFinished,
   isInPlan,
   isOnToday,
   sortForToday,
 } from '../utils/plan';
 import { MinutesStepper } from '../components/Today/MinutesStepper';
 import { GoalPanel } from '../components/Today/GoalPanel';
-import { GoalsTab } from '../components/Profile/GoalsTab';
+import { SortableList } from '../components/Today/SortableList';
+import { AllGoalsSheet, GoalRow } from '../components/Today/AllGoalsSheet';
 import { RepertoireTab } from '../components/Profile/RepertoireTab';
 
 interface TodayPageProps {
@@ -84,7 +89,7 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
 
   const [panelGoalId, setPanelGoalId] = useState<string | null>(null);
   const [sheet, setSheet] = useState<'goals' | 'repertoire' | null>(null);
-  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [newPiece, setNewPiece] = useState('');
 
   const load = async () => {
@@ -122,10 +127,6 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
   }, [goals, sessions]);
   const scale = useMemo(() => getNextScale(sessions), [sessions]);
   const warmupPiece = useMemo(() => getNextWarmupRepertoire(pieces, sessions), [pieces, sessions]);
-  const suggestedPieces = useMemo(
-    () => sortByLeastRecentlyPlayed(pieces).filter(p => p.id !== warmupPiece?.id).slice(0, 3),
-    [pieces, warmupPiece]
-  );
 
   const warmupMinutes = profile?.warmupMinutes ?? DEFAULT_BLOCK_MINUTES;
   const freePlayMinutes = profile?.freePlayMinutes ?? DEFAULT_BLOCK_MINUTES;
@@ -161,35 +162,28 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
     }
   };
 
-  // ---- drag to reorder (pointer events, so it works with touch and stylus) --
-  const rowRefs = useRef(new Map<string, HTMLDivElement>());
-  const [drag, setDrag] = useState<{ id: string; over: number } | null>(null);
+  const reorder = (ids: string[]) =>
+    ids.forEach((id, i) => {
+      if (goals.find(g => g.id === id)?.order !== i) patchGoal(id, { order: i });
+    });
 
-  const overIndexAt = (clientY: number) => {
-    let i = 0;
-    for (const g of todayGoals) {
-      const el = rowRefs.current.get(g.id);
-      if (el) {
-        const r = el.getBoundingClientRect();
-        if (clientY < r.top + r.height / 2) return i;
-      }
-      i++;
+  const removeGoal = async (goalId: string) => {
+    try {
+      await deleteGoal(goalId);
+      setGoals(prev => prev.filter(g => g.id !== goalId));
+    } catch (e) {
+      showError('Could not delete: ' + (e as Error).message);
     }
-    return todayGoals.length;
   };
 
-  const endDrag = () => {
-    if (!drag) return;
-    const from = todayGoals.findIndex(g => g.id === drag.id);
-    const to = drag.over > from ? drag.over - 1 : drag.over;
-    setDrag(null);
-    if (from < 0 || to === from) return;
-    const next = [...todayGoals];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    next.forEach((g, i) => {
-      if (g.order !== i) patchGoal(g.id, { order: i });
-    });
+  /** Put an existing goal (hidden or finished) back on Today, at the bottom. */
+  const addExisting = (g: Goal) => {
+    const patch: Partial<Goal> = { active: true, inPlan: true, order: todayGoals.length };
+    if (isGoalFinished(g) && !(hasSubGoals(g) && g.subGoals?.length)) patch.status = 'needs_work';
+    patchGoal(g.id, patch);
+    setAddOpen(false);
+    // A piece whose sections are all done needs a new focus before it shows up
+    if (isGoalFinished(g) && hasSubGoals(g) && g.subGoals?.length) setPanelGoalId(g.id);
   };
 
   // ---- sessions ------------------------------------------------------------
@@ -198,15 +192,15 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
     const blocks: SessionBlock[] = [];
     if (warmupOn) blocks.push({ kind: 'warmup', minutes: warmupMinutes, scale, ...(warmupPiece && { repertoireId: warmupPiece.id }) });
     for (const g of todayGoals.filter(isInPlan)) {
-      const focus = getFocusSubGoal(g, rotation.get(g.id));
-      blocks.push({ kind: 'goal', minutes: goalMinutes(g), goalId: g.id, ...(focus && { subGoalId: focus.id }) });
+      const focuses = getFocuses(g, rotation.get(g.id));
+      blocks.push({ kind: 'goal', minutes: goalMinutes(g), goalId: g.id, ...(focuses.length && { subGoalIds: focuses.map(f => f.id) }) });
     }
     if (freePlayOn) blocks.push({ kind: 'freePlay', minutes: freePlayMinutes });
     if (blocks.length === 0) {
       showError('Tick at least one thing to practice');
       return;
     }
-    const session: ActiveSession = { startedAt: Date.now(), blocks, index: 0, sections: [], playedPieces: [] };
+    const session: ActiveSession = { startedAt: Date.now(), blocks, index: 0, sections: [] };
     try {
       await setActiveSession(user.uid, session);
     } catch (e) {
@@ -229,8 +223,8 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
 
   const goalSubtitle = (g: Goal) => {
     const parts: string[] = [];
-    const focus = getFocusSubGoal(g, rotation.get(g.id));
-    if (focus) parts.push(`${focus.id === g.focusSubGoalId ? 'focus' : 'review'}: ${focus.name}`);
+    const focusLine = describeFocuses(getFocuses(g, rotation.get(g.id)), getPickedFocuses(g).length > 0);
+    if (focusLine) parts.push(focusLine);
     else if (hasSubGoals(g) && g.subGoals?.some(sg => sg.status !== 'complete')) parts.push('tap to pick a focus');
     if (g.targetBpm) parts.push(`${g.targetBpm} bpm`);
     return parts.join(' · ');
@@ -281,28 +275,18 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
       </Box>
 
       {/* Goals */}
-      {todayGoals.map((g, i) => (
-        <React.Fragment key={g.id}>
-          {drag && drag.over === i && <Box sx={{ height: 3, bgcolor: '#000' }} />}
-          <Box
-            ref={(el: HTMLDivElement | null) => {
-              if (el) rowRefs.current.set(g.id, el);
-              else rowRefs.current.delete(g.id);
-            }}
-            sx={{ ...rowSx, opacity: drag?.id === g.id ? 0.4 : 1 }}
-          >
+      <SortableList
+        items={todayGoals}
+        getId={g => g.id}
+        onReorder={reorder}
+        renderItem={(g, handle) => (
+          <Box sx={rowSx}>
             <IconButton
               variant="plain"
               color="neutral"
               aria-label={`Drag to reorder ${g.name}`}
-              sx={{ width: 36, minHeight: 44, cursor: 'grab', touchAction: 'none' }}
-              onPointerDown={e => {
-                e.currentTarget.setPointerCapture(e.pointerId);
-                setDrag({ id: g.id, over: i });
-              }}
-              onPointerMove={e => drag && setDrag({ id: drag.id, over: overIndexAt(e.clientY) })}
-              onPointerUp={endDrag}
-              onPointerCancel={() => setDrag(null)}
+              sx={{ width: 36, minHeight: 44 }}
+              {...handle}
             >
               <GripVertical size={20} />
             </IconButton>
@@ -321,12 +305,11 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
             </Box>
             <MinutesStepper value={goalMinutes(g)} disabled={!isInPlan(g)} onChange={m => patchGoal(g.id, { defaultMinutes: m })} />
           </Box>
-        </React.Fragment>
-      ))}
-      {drag && drag.over === todayGoals.length && <Box sx={{ height: 3, bgcolor: '#000' }} />}
+        )}
+      />
 
       <Stack direction="row" spacing={1} sx={{ py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-        <Button variant="plain" color="neutral" startDecorator={<PlusIcon size={18} />} onClick={() => setQuickAddOpen(true)} sx={{ minHeight: 48 }}>
+        <Button variant="plain" color="neutral" startDecorator={<PlusIcon size={18} />} onClick={() => setAddOpen(true)} sx={{ minHeight: 48 }}>
           Add goal
         </Button>
         <Box sx={{ flex: 1 }} />
@@ -342,7 +325,7 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography level="title-md">Free play</Typography>
           <Typography level="body-sm">
-            {suggestedPieces.length > 0 ? `Due: ${suggestedPieces.map(p => p.name).join(' · ')}` : 'Play anything from your repertoire'}
+            Play anything you like
           </Typography>
         </Box>
         <MinutesStepper value={freePlayMinutes} disabled={!freePlayOn} onChange={m => patchProfile({ freePlayMinutes: m })} />
@@ -363,24 +346,12 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
         </Button>
       </Stack>
 
-      {user && (
-        <GoalPanel
-          uid={user.uid}
-          goal={panelGoal}
-          rotatedSubGoalId={panelGoal ? rotation.get(panelGoal.id) : undefined}
-          onPatch={patchGoal}
-          onReload={load}
-          onOpenAllGoals={() => {
-            setPanelGoalId(null);
-            setSheet('goals');
-          }}
-          onClose={() => setPanelGoalId(null)}
-        />
-      )}
-
-      <QuickAddGoal
-        open={quickAddOpen}
-        onClose={() => setQuickAddOpen(false)}
+      <AddToToday
+        open={addOpen}
+        offToday={goals.filter(g => !isOnToday(g)).sort((a, b) => a.name.localeCompare(b.name))}
+        onClose={() => setAddOpen(false)}
+        onOpenGoal={id => setPanelGoalId(id)}
+        onAddExisting={addExisting}
         onAdd={async (name, type) => {
           if (!user) return;
           try {
@@ -394,7 +365,7 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
               ...(type === 'ear-training' && { earTrainingType: 'intervals' as const }),
             });
             await load();
-            setQuickAddOpen(false);
+            setAddOpen(false);
             setPanelGoalId(id); // straight into details
           } catch (e) {
             showError('Could not add goal: ' + (e as Error).message);
@@ -402,28 +373,43 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
         }}
       />
 
-      {/* Full lists: the old Profile tabs, full screen */}
-      <Modal open={sheet !== null} onClose={() => { setSheet(null); load(); }}>
+      <AllGoalsSheet open={sheet === 'goals'} goals={goals} onOpenGoal={id => setPanelGoalId(id)} onClose={() => setSheet(null)} />
+
+      <Modal open={sheet === 'repertoire'} onClose={() => { setSheet(null); load(); }}>
         <ModalDialog layout="fullscreen" sx={{ p: 0 }}>
           <ModalClose size="lg" />
           <Box sx={{ overflow: 'auto', flex: 1 }}>
             <Container maxWidth="md" sx={{ py: 3 }}>
-              <Typography level="h3" sx={{ mb: 2 }}>{sheet === 'goals' ? 'All goals' : 'All repertoire'}</Typography>
-              {sheet === 'goals' && <GoalsTab goals={goals} onGoalsUpdated={load} />}
-              {sheet === 'repertoire' && <RepertoireTab pieces={pieces} onPiecesUpdated={load} />}
+              <Typography level="h3" sx={{ mb: 2 }}>All repertoire</Typography>
+              <RepertoireTab pieces={pieces} onPiecesUpdated={load} />
             </Container>
           </Box>
         </ModalDialog>
       </Modal>
+
+      {/* Last, so it opens on top of All goals / Add goal */}
+      {user && (
+        <GoalPanel
+          uid={user.uid}
+          goal={panelGoal}
+          onPatch={patchGoal}
+          onDelete={removeGoal}
+          onReload={load}
+          onClose={() => setPanelGoalId(null)}
+        />
+      )}
     </Container>
   );
 };
 
-const QuickAddGoal: React.FC<{
+const AddToToday: React.FC<{
   open: boolean;
+  offToday: Goal[];
   onClose: () => void;
   onAdd: (name: string, type: GoalType) => Promise<void>;
-}> = ({ open, onClose, onAdd }) => {
+  onAddExisting: (goal: Goal) => void;
+  onOpenGoal: (id: string) => void;
+}> = ({ open, offToday, onClose, onAdd, onAddExisting, onOpenGoal }) => {
   const [name, setName] = useState('');
   const [type, setType] = useState<GoalType>('piece');
   const [busy, setBusy] = useState(false);
@@ -438,27 +424,51 @@ const QuickAddGoal: React.FC<{
 
   return (
     <Modal open={open} onClose={onClose}>
-      <ModalDialog sx={{ width: 'min(480px, 92vw)' }}>
+      <ModalDialog sx={{ width: 'min(560px, 94vw)', maxHeight: '90dvh', overflow: 'auto' }}>
         <ModalClose />
-        <Typography level="h4">Add goal</Typography>
-        <Stack spacing={2} sx={{ mt: 1 }}>
+        <Typography level="h4">Add to Today</Typography>
+        <Typography level="title-md" sx={{ mt: 1 }}>New goal</Typography>
+        <Stack spacing={1.5}>
           <Input
-            autoFocus
             size="lg"
             placeholder="Name, e.g. Chopin Nocturne Op. 9 No. 2"
             value={name}
             onChange={e => setName(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && submit()}
           />
-          <Select size="lg" value={type} onChange={(_, v) => v && setType(v)}>
-            {QUICK_TYPES.map(t => (
-              <Option key={t.value} value={t.value}>{t.label}</Option>
-            ))}
-          </Select>
-          <Button size="lg" onClick={submit} loading={busy} disabled={!name.trim()} sx={{ bgcolor: '#000' }}>
-            Add
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Select size="lg" value={type} onChange={(_, v) => v && setType(v)} sx={{ flex: 1 }}>
+              {QUICK_TYPES.map(t => (
+                <Option key={t.value} value={t.value}>{t.label}</Option>
+              ))}
+            </Select>
+            <Button size="lg" onClick={submit} loading={busy} disabled={!name.trim()} sx={{ bgcolor: '#000' }}>
+              Create
+            </Button>
+          </Stack>
         </Stack>
+
+        {offToday.length > 0 && (
+          <>
+            <Typography level="title-md" sx={{ mt: 2, pb: 0.5, borderBottom: '2px solid #000' }}>
+              Existing goals not on Today
+            </Typography>
+            <Box>
+              {offToday.map(g => (
+                <GoalRow
+                  key={g.id}
+                  goal={g}
+                  onOpen={() => onOpenGoal(g.id)}
+                  action={
+                    <Button variant="outlined" color="neutral" onClick={() => onAddExisting(g)} sx={{ minHeight: 44 }}>
+                      Add
+                    </Button>
+                  }
+                />
+              ))}
+            </Box>
+          </>
+        )}
       </ModalDialog>
     </Modal>
   );
