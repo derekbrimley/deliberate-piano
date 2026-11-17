@@ -49,6 +49,7 @@ import {
 import { MinutesStepper } from '../components/Today/MinutesStepper';
 import { GoalPanel } from '../components/Today/GoalPanel';
 import { SortableList } from '../components/Today/SortableList';
+import { StaffRule } from '../components/Engraving';
 import { AllGoalsSheet, GoalRow } from '../components/Today/AllGoalsSheet';
 import { RepertoireTab } from '../components/Profile/RepertoireTab';
 
@@ -261,8 +262,10 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
         </Button>
       </Box>
 
+      <StaffRule my={0} />
+
       {/* Warmup */}
-      <Box sx={{ ...rowSx, borderTop: '2px solid', borderTopColor: 'neutral.outlinedBorder' }}>
+      <Box sx={rowSx}>
         <Box sx={{ width: 36 }} />
         <Checkbox size="lg" checked={warmupOn} onChange={e => patchProfile({ warmupInPlan: e.target.checked })} />
         <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -330,7 +333,7 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
         </Box>
         <MinutesStepper value={freePlayMinutes} disabled={!freePlayOn} onChange={m => patchProfile({ freePlayMinutes: m })} />
       </Box>
-      <Stack direction="row" spacing={1} sx={{ pl: { xs: 0, sm: 11 }, pb: 2, borderBottom: '2px solid', borderColor: 'neutral.outlinedBorder', alignItems: 'center' }}>
+      <Stack direction="row" spacing={1} sx={{ pl: { xs: 0, sm: 11 }, pb: 2, alignItems: 'center' }}>
         <Input
           value={newPiece}
           onChange={e => setNewPiece(e.target.value)}
@@ -345,6 +348,7 @@ export const TodayPage: React.FC<TodayPageProps> = ({ onStart }) => {
           All repertoire ({pieces.length})
         </Button>
       </Stack>
+      <StaffRule my={0} final />
 
       <AddToToday
         open={addOpen}
@@ -450,7 +454,7 @@ const AddToToday: React.FC<{
 
         {offToday.length > 0 && (
           <>
-            <Typography level="title-md" sx={{ mt: 2, pb: 0.5, borderBottom: '2px solid #000' }}>
+            <Typography level="title-md" sx={{ mt: 2, pb: 0.5, borderBottom: '2px solid', borderColor: 'text.primary' }}>
               Existing goals not on Today
             </Typography>
             <Box>

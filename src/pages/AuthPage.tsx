@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Box, Container } from '@mui/joy';
+import { Box, Typography, Container } from '@mui/joy';
 import { LoginForm } from '../components/Auth/LoginForm';
 import { SignupForm } from '../components/Auth/SignupForm';
 
@@ -23,7 +23,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
       }}
     >
       <Box sx={{ mb: 4, textAlign: 'center' }}>
-        <h1>🎹 Practice Now</h1>
+        <Typography level="h1">Practice Now</Typography>
       </Box>
 
       {isLogin ? (

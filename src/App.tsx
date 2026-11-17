@@ -9,6 +9,8 @@ import {
   Alert,
 } from '@mui/joy';
 import { useAuth } from './context/AuthContext';
+import { useThemeChoice } from './context/ThemeChoiceContext';
+import { smallCapsSx, StaffRule } from './components/Engraving';
 import { AuthPage } from './pages/AuthPage';
 import { TodayPage } from './pages/TodayPage';
 import { PracticePage } from './pages/PracticePage';
@@ -60,6 +62,8 @@ const updateUrl = (state: AppState) => {
 
 export const App: React.FC = () => {
   const { user, userProfile, loading: authLoading } = useAuth();
+  const { choice: look } = useThemeChoice();
+  const paper = look === 'paper';
   const [appState, setAppState] = useState<AppState>('loading');
   const [sessionState, setSessionState] = useState<ActiveSession | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +175,24 @@ export const App: React.FC = () => {
     );
   }
 
+  // Current page is marked by a thick underline and bold text, not a fill color
+  // Paper: a book's running header (small caps on white, staff rule below). Color: the sage bar.
+  const navButtonSx = paper
+    ? {
+        ...smallCapsSx,
+        color: 'text.primary',
+        borderRadius: 0,
+        borderBottom: '3px solid transparent',
+        '&[aria-current="page"]': { borderBottomColor: 'text.primary' },
+      }
+    : {
+        color: 'white',
+        borderRadius: 0,
+        borderBottom: '3px solid transparent',
+        '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' },
+        '&[aria-current="page"]': { borderBottomColor: 'white', fontWeight: 700 },
+      };
+
   // Navigation bar for authenticated users
   const showNav = user && appState !== 'auth' && appState !== 'onboarding' && appState !== 'session-flow';
 
@@ -178,13 +200,13 @@ export const App: React.FC = () => {
     <Box sx={{ minHeight: '100vh', height: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* Navigation */}
       {showNav && (
-        <Sheet variant="solid" sx={{ mb: 0 }}>
+        <Sheet variant={paper ? 'plain' : 'solid'} sx={{ mb: 0 }}>
           <Container sx={{ maxWidth: 900 }}>
             <Stack
               direction="row"
               justifyContent="space-between"
               alignItems="center"
-              sx={{ py: 2 }}
+              sx={{ py: paper ? 1 : 2 }}
             >
               <Box
                 onClick={handleNavigateToMain}
@@ -195,38 +217,46 @@ export const App: React.FC = () => {
                   transition: 'opacity 0.2s',
                 }}
               >
-                <Typography level="h4" sx={{ color: 'white' }}>
-                  🎹 Piano Coach
-                </Typography>
+                {paper ? (
+                  <Typography sx={{ ...smallCapsSx, fontSize: '1.5rem' }}>Piano Coach</Typography>
+                ) : (
+                  <Typography level="h4" sx={{ color: 'white' }}>
+                    🎹 Piano Coach
+                  </Typography>
+                )}
               </Box>
 
               <Stack direction="row" spacing={1}>
                 <Button
-                  variant={appState === 'main' ? 'soft' : 'plain'}
+                  variant="plain"
+                  aria-current={appState === 'main' ? 'page' : undefined}
                   startDecorator={<HomeIcon size={20} />}
                   onClick={handleNavigateToMain}
-                  sx={{ color: 'white' }}
+                  sx={navButtonSx}
                 >
                   Today
                 </Button>
                 <Button
-                  variant={appState === 'session-history' ? 'soft' : 'plain'}
+                  variant="plain"
+                  aria-current={appState === 'session-history' ? 'page' : undefined}
                   startDecorator={<HistoryIcon size={20} />}
                   onClick={handleNavigateToHistory}
-                  sx={{ color: 'white' }}
+                  sx={navButtonSx}
                 >
                   History
                 </Button>
                 <Button
-                  variant={appState === 'profile' ? 'soft' : 'plain'}
+                  variant="plain"
+                  aria-current={appState === 'profile' ? 'page' : undefined}
                   startDecorator={<SettingsIcon size={20} />}
                   onClick={handleNavigateToProfile}
-                  sx={{ color: 'white' }}
+                  sx={navButtonSx}
                 >
                   Settings
                 </Button>
               </Stack>
             </Stack>
+            {paper && <StaffRule my={0} />}
           </Container>
         </Sheet>
       )}

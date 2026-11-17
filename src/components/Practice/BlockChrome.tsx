@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Button, IconButton, Stack, Typography } from '@mui/joy';
+import { engravedNumeralsSx, MeasureProgress, smallCapsSx } from '../Engraving';
 import { PauseIcon, PlayIcon, ChevronRight, XIcon } from 'lucide-react';
 import { formatTimeMinutesSecondsCompact } from '../../utils/formatting';
 
@@ -37,9 +38,12 @@ export const BlockHeader: React.FC<BlockHeaderProps> = ({ position, total, title
       <XIcon size={22} />
     </IconButton>
     <Box sx={{ flex: 1, minWidth: 0 }}>
-      <Typography level="body-sm" sx={{ color: 'text.secondary' }}>
-        {position} of {total}
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+        <MeasureProgress position={position} total={total} />
+        <Typography level="body-sm" sx={{ ...smallCapsSx, mb: 0.5 }}>
+          {position} of {total}
+        </Typography>
+      </Box>
       <Typography level="title-lg" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {title}
       </Typography>
@@ -49,7 +53,7 @@ export const BlockHeader: React.FC<BlockHeaderProps> = ({ position, total, title
         </Typography>
       )}
     </Box>
-    <Typography level="h2" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+    <Typography level="h2" sx={{ ...engravedNumeralsSx, minWidth: '3.2ch', textAlign: 'right' }}>
       {formatTimeMinutesSecondsCompact(timer.timeRemaining)}
     </Typography>
     <IconButton

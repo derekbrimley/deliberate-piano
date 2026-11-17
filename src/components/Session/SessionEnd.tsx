@@ -7,7 +7,9 @@ import {
   Stack,
   Typography,
   Textarea,
+  Chip,
 } from '@mui/joy';
+import { Fermata, StaffRule } from '../Engraving';
 import { SessionLogSection } from '../../types';
 import { formatTimeMinutesSecondsCompact, formatTime } from '../../utils/formatting';
 
@@ -31,9 +33,12 @@ export const SessionEnd: React.FC<SessionEndProps> = ({
 
   return (
     <Box sx={{ maxWidth: 700, mx: 'auto', py: 4 }}>
-      <Typography level="h2" sx={{ mb: 4 }}>
+      {/* A fermata over the title: the session's final held note */}
+      <Box sx={{ mb: 1.5, color: 'text.primary' }}><Fermata size={44} /></Box>
+      <Typography level="h2">
         Session Complete!
       </Typography>
+      <StaffRule my={2} final />
 
       {/* Session Summary */}
       <Card sx={{ mb: 4 }}>
@@ -98,12 +103,9 @@ export const SessionEnd: React.FC<SessionEndProps> = ({
                       <Typography level="body-sm">
                         {formatTimeMinutesSecondsCompact(section.actualDuration)}
                       </Typography>
-                      <Typography
-                        level="body-sm"
-                        color={section.status === 'complete' ? 'success' : 'warning'}
-                      >
-                        {section.status === 'complete' ? '✓ Complete' : 'Needs Work'}
-                      </Typography>
+                      <Chip size="sm" variant="soft" color={section.status === 'complete' ? 'success' : 'warning'}>
+                        {section.status === 'complete' ? '✓ Complete' : 'Needs work'}
+                      </Chip>
                     </Box>
                   </CardContent>
                 </Card>

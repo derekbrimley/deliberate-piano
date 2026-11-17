@@ -2,9 +2,29 @@
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
+}
 
-  color: #2d382a;
-  background-color: #EFE4D2;
+/* Label and display fonts per look (see components/Engraving.tsx) */
+:root {
+  --label-font: inherit;
+  --label-weight: 600;
+  --label-size: 1rem;
+  --label-tracking: 0;
+  --display-font: inherit;
+}
+
+/* Paper look (DC-1): engraved-score type, solid selection, no tap flash */
+:root[data-look="paper"] {
+  -webkit-tap-highlight-color: transparent;
+  --label-font: "Cormorant SC", "Cormorant", Georgia, serif;
+  --label-weight: 700;
+  --label-size: 1.2rem;
+  --label-tracking: 0.04em;
+  --display-font: "Cormorant", Georgia, serif;
+}
+:root[data-look="paper"] ::selection {
+  background: #000;
+  color: #fff;
 }
 
 * {
