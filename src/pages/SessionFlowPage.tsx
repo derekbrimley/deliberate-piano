@@ -7,7 +7,6 @@ import { FreePlayPhase } from '../components/Session/FreePlayPhase';
 import { SessionEnd } from '../components/Session/SessionEnd';
 import { getRepertoirePieces, createPracticeSession, updateGoal, getGoal, getPracticeSessions, getRepertoirePiece, updateRepertoirePiece } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
-import { clearSessionState } from '../utils/storage';
 import { XIcon, CheckCircle } from 'lucide-react';
 import { getNextWarmupRepertoire } from '../utils/repertoire';
 import { getNextScale, ScaleKey } from '../utils/scales';
@@ -232,7 +231,6 @@ export const SessionFlowPage: React.FC<SessionFlowPageProps> = ({
         }
       }
 
-      clearSessionState();
       onSessionComplete();
     } catch (err) {
       setError((err as Error).message);
@@ -240,7 +238,6 @@ export const SessionFlowPage: React.FC<SessionFlowPageProps> = ({
   };
 
   const handleExitSession = () => {
-    clearSessionState();
     onSessionComplete();
   };
 

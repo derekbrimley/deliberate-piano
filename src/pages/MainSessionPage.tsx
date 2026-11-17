@@ -129,10 +129,12 @@ export const MainSessionPage: React.FC<MainSessionPageProps> = ({ onStartSession
             }
           });
 
-        // Distribute time evenly
+        // Distribute time evenly, in whole minutes. The duration inputs only show
+        // minutes, so a non-round value (e.g. 525s) would display as "8 min" but
+        // actually run as 8:45.
         if (initialSections.length > 0) {
-          const availableTime = duration * 60 - warmupTime - freePlayTime;
-          const timePerSection = Math.floor(availableTime / initialSections.length);
+          const availableMinutes = duration - (warmupTime + freePlayTime) / 60;
+          const timePerSection = Math.max(1, Math.floor(availableMinutes / initialSections.length)) * 60;
           initialSections.forEach(section => {
             section.duration = timePerSection;
           });

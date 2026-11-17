@@ -26,13 +26,12 @@ There are no tests and no linter. `npm run build` is the only validation (TypeSc
 - **ToastContext** (`src/context/ToastContext.tsx`): Joy UI Snackbar notification system. Use `useToast()` hook — exports `showToast()`, `showSuccess()`, `showError()`, `showWarning()`, `showInfo()`. Single toast, 3-second auto-hide.
 - **Provider Hierarchy**: `CssVarsProvider` → `AuthProvider` → `ToastProvider` → `App` (see `src/main.tsx`)
 - **App.tsx**: Central state machine with states: `loading`, `auth`, `onboarding`, `main`, `session-flow`, `session-history`, `profile`
-- **localStorage**: Session state persisted to survive page refreshes during active practice (see `src/utils/storage.ts`)
 
 AuthContext and ToastContext are the only React Contexts — no Redux/Zustand.
 
 ### Navigation
 
-App uses **state-based navigation with URL synchronization** (not React Router) to avoid losing session state during active practice:
+App uses **state-based navigation with URL synchronization** (not React Router):
 
 - `App.tsx` manages all state transitions and renders the appropriate page
 - URL query params provide bookmarkability: `?page=practice|history|profile&tab=goals|repertoire|settings`
@@ -44,17 +43,16 @@ App uses **state-based navigation with URL synchronization** (not React Router) 
 1. Firebase Auth change → `AuthContext` fetches `UserProfile` from Firestore
 2. If `onboardingComplete: false` → `OnboardingFlow` (3-step setup)
 3. Main navigation: `MainSessionPage` (plan) → `SessionFlowPage` (execute) → `SessionHistoryPage` / `ProfilePage`
-4. Session state saved to localStorage on every phase change; checked on mount to resume interrupted sessions
-5. AI exercise suggestions fetched from Anthropic API when entering each goal section (`src/services/llm.ts`)
+4. AI exercise suggestions fetched from Anthropic API when entering each goal section (`src/services/llm.ts`)
 
 ### Session Flow Phases
 
 `SessionFlowPage` progresses through four phases sequentially:
 
-1. **WarmupPhase** (`src/components/Session/WarmupPhase.tsx`): Breathing → scales. Recommends next scale via cycle-of-fourths rotation (`src/utils/scales.ts`).
+1. **WarmupPhase** (`src/components/Session/WarmupPhase.tsx`): Scales → repertoire review. The warmup duration is split between the two (scales get all of it if there's no repertoire). Recommends next scale via cycle-of-fourths rotation (`src/utils/scales.ts`).
 2. **GoalWorkPhase** (`src/components/Session/GoalWorkPhase.tsx`): Iterates through `PlannedSection[]`. Each section: timer, AI suggestion (piece/technical only), note history accordion, audio recorder, status selection. Deep-listening goals embed a YouTube player instead.
 3. **FreePlayPhase** (`src/components/Session/FreePlayPhase.tsx`): Timer + repertoire checkboxes.
-4. **SessionEnd** (`src/components/Session/SessionEnd.tsx`): Summary + overall notes → saves `PracticeSessionLog` to Firestore and clears localStorage.
+4. **SessionEnd** (`src/components/Session/SessionEnd.tsx`): Summary + overall notes → saves `PracticeSessionLog` to Firestore.
 
 **Key interface**: `PlannedSection` (`src/types/index.ts`) — `{ goalId, subGoalId?, duration }` — bridges planning to execution.
 
@@ -64,7 +62,7 @@ Uses `@anthropic-ai/sdk` with `dangerouslyAllowBrowser: true` (client-side, requ
 
 ### Custom Hooks
 
-- **useTimer** (`src/hooks/useTimer.ts`): Countdown with start/pause/resume/reset, 100ms precision, plays ding on completion
+- **useTimer** (`src/hooks/useTimer.ts`): Countdown `{ duration, autoStart, onComplete }` with start/pause/`restart(duration)`. All timer state is one object so transitions are atomic; use `restart` when moving to a new section. Plays ding on completion
 - **useAudioRecorder** (`src/hooks/useAudioRecorder.ts`): MediaRecorder wrapper, in-memory blob only — audio is NOT persisted
 - **useConfirmDialog** (`src/hooks/useConfirmDialog.tsx`): Reusable confirmation dialog
 
@@ -117,7 +115,7 @@ VITE_ANTHROPIC_API_KEY=
 ## Key Architectural Decisions
 
 1. **State-based navigation** (not React Router) to prevent losing active session state on navigation
-2. **localStorage session persistence** to survive page refreshes during practice
+2. **No session persistence** — a page refresh mid-session loses the session (an unused localStorage stub was removed)
 3. **In-memory audio only** — recordings are blob URLs, never saved to Firestore
 4. **Timestamped note history** (`NoteEntry[]`) rather than a single mutable notes field
 5. **Flexible goal structure** — `subGoals[]` for piece goals; flat fields for other types
