@@ -27,6 +27,7 @@ import { PlusIcon, TrashIcon, ChevronDownIcon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
+import { SheetMusicControl } from '../SheetMusic/SheetMusicControl';
 
 interface RepertoireTabProps {
   pieces: RepertoirePiece[];
@@ -147,6 +148,16 @@ export const RepertoireTab: React.FC<RepertoireTabProps> = ({ pieces, onPiecesUp
                   <Typography level="body-sm" color="danger" sx={{ mb: 1 }}>
                     Never played
                   </Typography>
+                )}
+
+                {user && (
+                  <Box sx={{ mb: 1.5 }}>
+                    <SheetMusicControl
+                      uid={user.uid}
+                      owner={{ kind: 'repertoire', id: piece.id, name: piece.name, sheetMusic: piece.sheetMusic }}
+                      onChanged={onPiecesUpdated}
+                    />
+                  </Box>
                 )}
 
                 {/* Practice History */}

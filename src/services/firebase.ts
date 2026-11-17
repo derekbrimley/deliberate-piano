@@ -263,6 +263,9 @@ export const getRepertoirePieces = async (uid: string): Promise<RepertoirePiece[
       lastPlayedDate: data.lastPlayedDate ? (data.lastPlayedDate as Timestamp).toDate() : undefined,
       practiceHistory: (data.practiceHistory || []).map((ts: Timestamp) => ts.toDate()),
       createdAt: (data.createdAt as Timestamp).toDate(),
+      sheetMusic: data.sheetMusic
+        ? { ...data.sheetMusic, uploadedAt: (data.sheetMusic.uploadedAt as Timestamp)?.toDate?.() ?? new Date() }
+        : undefined,
     } as RepertoirePiece;
   });
 };
@@ -277,6 +280,9 @@ export const getRepertoirePiece = async (pieceId: string): Promise<RepertoirePie
     lastPlayedDate: data.lastPlayedDate ? (data.lastPlayedDate as Timestamp).toDate() : undefined,
     practiceHistory: (data.practiceHistory || []).map((ts: Timestamp) => ts.toDate()),
     createdAt: (data.createdAt as Timestamp).toDate(),
+    sheetMusic: data.sheetMusic
+      ? { ...data.sheetMusic, uploadedAt: (data.sheetMusic.uploadedAt as Timestamp)?.toDate?.() ?? new Date() }
+      : undefined,
   } as RepertoirePiece;
 };
 

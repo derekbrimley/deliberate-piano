@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, useRef, useState } from 'react';
 import { Box, Button, Stack, Typography } from '@mui/joy';
 import { BookOpen, FileUp, Trash2 } from 'lucide-react';
-import { Goal } from '../../types';
+import { SheetMusicOwner } from '../../types';
 import { removeSheetMusic, uploadSheetMusic } from '../../services/sheetMusic';
 import { useToast } from '../../context/ToastContext';
 
@@ -9,12 +9,13 @@ const SheetMusicViewer = lazy(() => import('./SheetMusicViewer'));
 
 interface SheetMusicControlProps {
   uid: string;
-  goal: Goal;
+  owner: SheetMusicOwner;
   onChanged: () => void;
 }
 
-/** Upload / open / replace / remove the PDF attached to a goal. */
-export const SheetMusicControl: React.FC<SheetMusicControlProps> = ({ uid, goal, onChanged }) => {
+/** Upload / open / replace / remove the PDF attached to a goal or repertoire piece. */
+export const SheetMusicControl: React.FC<SheetMusicControlProps> = ({ uid, owner, onChanged }) => {
+  const ref = { kind: owner.kind, id: owner.id };
   const { showSuccess, showError } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -27,7 +28,7 @@ export const SheetMusicControl: React.FC<SheetMusicControlProps> = ({ uid, goal,
     if (!file) return;
     setBusy(true);
     try {
-      await uploadSheetMusic(uid, goal.id, file);
+      await uploadSheetMusic(uid, ref, file);
       showSuccess('Sheet music uploaded');
       onChanged();
     } catch (err: any) {
@@ -45,7 +46,7 @@ export const SheetMusicControl: React.FC<SheetMusicControlProps> = ({ uid, goal,
     }
     setBusy(true);
     try {
-      await removeSheetMusic(uid, goal.id);
+      await removeSheetMusic(uid, ref);
       showSuccess('Sheet music removed');
       onChanged();
     } catch (err: any) {
@@ -60,10 +61,10 @@ export const SheetMusicControl: React.FC<SheetMusicControlProps> = ({ uid, goal,
   return (
     <Box>
       <input ref={inputRef} type="file" accept="application/pdf,.pdf" hidden onChange={onFile} />
-      {goal.sheetMusic ? (
+      {owner.sheetMusic ? (
         <Stack spacing={1}>
           <Typography level="body-sm" startDecorator={<BookOpen size={16} />}>
-            Sheet music: {goal.sheetMusic.fileName}
+            Sheet music: {owner.sheetMusic.fileName}
           </Typography>
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
             <Button size="sm" variant="solid" onClick={() => setViewerOpen(true)} disabled={busy}>
@@ -96,9 +97,9 @@ export const SheetMusicControl: React.FC<SheetMusicControlProps> = ({ uid, goal,
         </Button>
       )}
 
-      {viewerOpen && goal.sheetMusic && (
+      {viewerOpen && owner.sheetMusic && (
         <Suspense fallback={null}>
-          <SheetMusicViewer uid={uid} goal={goal} onClose={() => setViewerOpen(false)} />
+          <SheetMusicViewer uid={uid} owner={owner} onClose={() => setViewerOpen(false)} />
         </Suspense>
       )}
     </Box>

@@ -62,7 +62,13 @@ Uses `@anthropic-ai/sdk` with `dangerouslyAllowBrowser: true` (client-side, requ
 
 ### Sheet Music (`src/components/SheetMusic/`, `src/services/sheetMusic.ts`)
 
-Piece and technical goals can have a PDF (`goal.sheetMusic`). Files live in Firebase Storage at `users/{uid}/sheet-music/{goalId}/score.pdf`; pen/highlighter strokes are saved next to it as `annotations.json` (`SheetMusicAnnotations`, coordinates normalized 0..1 per page). `SheetMusicViewer` renders with `pdfjs-dist` (lazy-loaded), opens automatically for goal sections that have a PDF, and does palm rejection: once a stylus is seen, fingers only turn pages. Arrow/PageUp/PageDown keys (Bluetooth pedals) turn pages. Setup steps in SETUP.md (`storage.rules`, `storage.cors.json`).
+Goals (piece/technical) and repertoire pieces can have a PDF (`sheetMusic` field), handled through a `SheetMusicOwner` (`{ kind: 'goal' | 'repertoire', id, name, sheetMusic }`). Files live in Firebase Storage at `users/{uid}/sheet-music/{goalId}/` or `users/{uid}/sheet-music/repertoire/{pieceId}/` (`score.pdf` + `annotations.json`; strokes normalized 0..1 per page). Setup in SETUP.md (`storage.rules`, `storage.cors.json`).
+
+`SheetMusicViewer` (pdfjs-dist, lazy-loaded, portaled to `<body>`) opens automatically for goal sections and warmup repertoire review that have a PDF; `ViewerSessionControls` puts the section timer in its toolbar. It renders only the visible region at the current zoom (`View { z, ox, oy }`, z=1 = fit width) and CSS-transforms the last bitmap during gestures. Hand mode: swipe turns pages, pinch zooms, drag pans, tap middle toggles the toolbar, tap outer edges turns pages. Draw modes: once a stylus is seen, one finger never draws (palm rejection), two fingers pinch/pan; pen width scales down with zoom. Arrow/PageUp/PageDown keys (pedals) turn pages.
+
+### PWA
+
+`public/manifest.webmanifest`, `public/icons/`, and a network-first `public/sw.js` (same-origin GETs only, registered in production from `main.tsx`) make the app installable ("Add to Home screen") and open without browser UI.
 
 ### Metronome
 
