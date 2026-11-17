@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Box, Container, Alert, IconButton, Modal, ModalDialog, Typography, Stack, Button, LinearProgress } from '@mui/joy';
 import { Goal, PlannedSection, RepertoirePiece, PracticeSessionLog, SessionLogSection } from '../types';
 import { WarmupPhase } from '../components/Session/WarmupPhase';
 import { GoalWorkPhase } from '../components/Session/GoalWorkPhase';
 import { FreePlayPhase } from '../components/Session/FreePlayPhase';
 import { SessionEnd } from '../components/Session/SessionEnd';
+import { Metronome } from '../components/Session/Metronome';
 import { getRepertoirePieces, createPracticeSession, updateGoal, getGoal, getPracticeSessions, getRepertoirePiece, updateRepertoirePiece } from '../services/firebase';
 import { useAuth } from '../context/AuthContext';
 import { clearSessionState } from '../utils/storage';
@@ -47,6 +48,8 @@ export const SessionFlowPage: React.FC<SessionFlowPageProps> = ({
   const [warmupRepertoireId, setWarmupRepertoireId] = useState<string | undefined>();
   const [recommendedScale, setRecommendedScale] = useState<ScaleKey>('C');
   const [scalePracticed, setScalePracticed] = useState<ScaleKey | undefined>();
+  const [activeGoalBpm, setActiveGoalBpm] = useState<number | undefined>();
+  const handleActiveGoalChange = useCallback((goal?: Goal) => setActiveGoalBpm(goal?.targetBpm), []);
 
   // Dynamic state for mid-session updates
   const [dynamicPlannedSections, setDynamicPlannedSections] = useState<PlannedSection[]>(plannedSections);
@@ -378,6 +381,7 @@ export const SessionFlowPage: React.FC<SessionFlowPageProps> = ({
           onComplete={handleGoalWorkComplete}
           onGoalUpdated={handleGoalUpdated}
           onAddPlannedSection={handleAddPlannedSection}
+          onActiveGoalChange={handleActiveGoalChange}
         />
       )}
 
@@ -388,6 +392,10 @@ export const SessionFlowPage: React.FC<SessionFlowPageProps> = ({
           onPlayedPieces={setPlayedPieces}
           onComplete={handleFreePlayComplete}
         />
+      )}
+
+      {phase !== 'end' && (
+        <Metronome suggestedBpm={phase === 'goal_work' ? activeGoalBpm : undefined} />
       )}
 
       {phase === 'end' && (

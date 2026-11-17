@@ -35,6 +35,7 @@ interface GoalWorkPhaseProps {
   onComplete: (sections: SessionLogSection[]) => void;
   onGoalUpdated: (updatedGoal: Goal) => void;
   onAddPlannedSection: (section: PlannedSection, currentIndex: number) => void;
+  onActiveGoalChange?: (goal: Goal | undefined) => void;
 }
 
 export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
@@ -43,6 +44,7 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
   onComplete,
   onGoalUpdated,
   onAddPlannedSection,
+  onActiveGoalChange,
 }) => {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [sectionNotes, setSectionNotes] = useState('');
@@ -78,6 +80,11 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
   const { timeRemaining, isRunning, start, pause, reset } = useTimer({
     initialDuration: timerDuration,
   });
+
+  // Let the parent know which goal is up (e.g. so the metronome can use its target BPM)
+  useEffect(() => {
+    onActiveGoalChange?.(currentGoal);
+  }, [currentGoal, onActiveGoalChange]);
 
   const {
     isRecording,
