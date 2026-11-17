@@ -60,6 +60,22 @@ App uses **state-based navigation with URL synchronization** (not React Router):
 
 Uses `@anthropic-ai/sdk` with `dangerouslyAllowBrowser: true` (client-side, requires `VITE_ANTHROPIC_API_KEY`). Core function: `generateExerciseSuggestion(context)`. Uses prefill technique (`assistant: "Exercise suggestion:"`), max 150 tokens. Only called for piece and technical goals.
 
+### Sheet Music (`src/components/SheetMusic/`, `src/services/sheetMusic.ts`)
+
+Piece and technical goals can have a PDF (`goal.sheetMusic`). Files live in Firebase Storage at `users/{uid}/sheet-music/{goalId}/score.pdf`; pen/highlighter strokes are saved next to it as `annotations.json` (`SheetMusicAnnotations`, coordinates normalized 0..1 per page). `SheetMusicViewer` renders with `pdfjs-dist` (lazy-loaded), opens automatically for goal sections that have a PDF, and does palm rejection: once a stylus is seen, fingers only turn pages. Arrow/PageUp/PageDown keys (Bluetooth pedals) turn pages. Setup steps in SETUP.md (`storage.rules`, `storage.cors.json`).
+
+### Metronome
+
+`useMetronome` (Web Audio lookahead scheduler) + floating `Metronome` component rendered by `SessionFlowPage` in every phase; picks up the current goal's `targetBpm` via `GoalWorkPhase`'s `onActiveGoalChange`.
+
+### musictheory.net exercises (`src/utils/musicTheory.ts`)
+
+Ear training (except deep-listening) and eye training goals embed a musictheory.net exercise iframe (their FAQ permits embedding at ≥600×600). `goal.musicTheoryExerciseUrl` stores a preset or a custom Exercise Customizer link; otherwise a default is derived from the goal type.
+
+### Target device
+
+Derek practices on a Daylight DC-1 (Android, monochrome reflective screen, stylus). Prefer high contrast, black/white, 44px+ touch targets, and don't rely on color.
+
 ### Custom Hooks
 
 - **useTimer** (`src/hooks/useTimer.ts`): Countdown `{ duration, autoStart, onComplete }` with start/pause/`restart(duration)`. All timer state is one object so transitions are atomic; use `restart` when moving to a new section. Plays ding on completion

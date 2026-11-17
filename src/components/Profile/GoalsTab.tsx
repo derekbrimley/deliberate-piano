@@ -23,6 +23,9 @@ import { Goal, SubGoal, GoalType } from '../../types';
 import { createGoal, updateGoal, deleteGoal } from '../../services/firebase';
 import { PlusIcon, TrashIcon, PencilIcon, Music, Brain, Ear, Eye } from 'lucide-react';
 import { CreateGoalModal } from './CreateGoalModal';
+import { SheetMusicControl } from '../SheetMusic/SheetMusicControl';
+import { MusicTheoryExerciseControl } from '../MusicTheory/MusicTheoryExerciseControl';
+import { usesMusicTheoryExercise } from '../../utils/musicTheory';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
@@ -576,6 +579,14 @@ export const GoalsTab: React.FC<GoalsTabProps> = ({ goals, onGoalsUpdated }) => 
                   )}
                 </Stack>
               </Box>
+            )}
+
+            {/* Sheet music */}
+            {(goal.type === 'piece' || goal.type === 'technical') && user && (
+              <SheetMusicControl uid={user.uid} goal={goal} onChanged={onGoalsUpdated} />
+            )}
+            {usesMusicTheoryExercise(goal) && (
+              <MusicTheoryExerciseControl key={goal.musicTheoryExerciseUrl || ''} goal={goal} onChanged={onGoalsUpdated} />
             )}
 
             {/* Action Buttons */}

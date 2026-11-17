@@ -41,6 +41,27 @@ export interface Song {
   listenHistory: Date[];
 }
 
+// Sheet music PDF attached to a goal (stored in Firebase Storage)
+export interface SheetMusic {
+  storagePath: string; // users/{uid}/sheet-music/{goalId}/score.pdf
+  fileName: string;
+  uploadedAt: Date;
+}
+
+// A pen/highlighter stroke on a sheet music page.
+// Coordinates are normalized to the page (0..1) so they survive any screen size.
+export interface AnnotationStroke {
+  tool: 'pen' | 'highlighter';
+  width: number; // fraction of page width
+  points: number[]; // flat [x0, y0, x1, y1, ...]
+}
+
+// All annotations for one goal's sheet music, keyed by page number (1-based)
+export interface SheetMusicAnnotations {
+  version: 1;
+  pages: Record<string, AnnotationStroke[]>;
+}
+
 // Goal
 export interface Goal {
   id: string;
@@ -59,6 +80,8 @@ export interface Goal {
   deepListeningSongs?: Song[]; // Only for 'ear-training' with deep-listening type
   earTrainingFocus?: ('intervals' | 'chords')[]; // DEPRECATED: Only for backwards compatibility
   eyeTrainingFocus?: ('intervals' | 'chords')[]; // Only for 'eye-training' type
+  sheetMusic?: SheetMusic; // For 'piece' and 'technical' types
+  musicTheoryExerciseUrl?: string; // musictheory.net exercise for ear/eye training (preset or custom link)
 
   // For goals without sub-goals, track status directly
   status?: 'needs_work' | 'complete';

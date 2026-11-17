@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import {
   Box,
   Button,
@@ -18,16 +18,22 @@ import {
   Modal,
   ModalDialog,
   Input,
+  IconButton,
 } from '@mui/joy';
 import { Goal, PlannedSection, SessionLogSection } from '../../types';
 import { useTimer } from '../../hooks/useTimer';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
 import { formatTimeMinutesSecondsCompact, formatDateTime } from '../../utils/formatting';
-import { PauseIcon, PlayIcon, MicIcon, StopCircleIcon, ChevronDown, ChevronRight, ChevronLeft, ChevronRightIcon, Lightbulb, PlusIcon } from 'lucide-react';
+import { PauseIcon, PlayIcon, MicIcon, StopCircleIcon, ChevronDown, ChevronRight, ChevronLeft, ChevronRightIcon, Lightbulb, PlusIcon, BookOpen } from 'lucide-react';
 import { generateExerciseSuggestion } from '../../services/llm';
 import { updateGoal, getGoal } from '../../services/firebase';
 import { extractYouTubeVideoId, createYouTubeEmbedUrl } from '../../utils/youtube';
 import { CreateGoalModal } from '../Profile/CreateGoalModal';
+import { MusicTheoryExercise } from '../MusicTheory/MusicTheoryExercise';
+import { usesMusicTheoryExercise } from '../../utils/musicTheory';
+import { useAuth } from '../../context/AuthContext';
+
+const SheetMusicViewer = lazy(() => import('../SheetMusic/SheetMusicViewer'));
 
 interface GoalWorkPhaseProps {
   goals: Goal[];
@@ -35,6 +41,7 @@ interface GoalWorkPhaseProps {
   onComplete: (sections: SessionLogSection[]) => void;
   onGoalUpdated: (updatedGoal: Goal) => void;
   onAddPlannedSection: (section: PlannedSection, currentIndex: number) => void;
+  onActiveGoalChange?: (goal: Goal | undefined) => void;
 }
 
 export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
@@ -43,6 +50,7 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
   onComplete,
   onGoalUpdated,
   onAddPlannedSection,
+  onActiveGoalChange,
 }) => {
   const [currentSectionIndex, setCurrentSectionIndex] = useState(0);
   const [sectionNotes, setSectionNotes] = useState('');
@@ -79,6 +87,18 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
     duration: timerDuration,
     autoStart: true,
   });
+
+  // Sheet music: opens automatically when a section with a PDF starts
+  const { user } = useAuth();
+  const [sheetMusicOpen, setSheetMusicOpen] = useState(false);
+  useEffect(() => {
+    setSheetMusicOpen(!!currentGoal?.sheetMusic);
+  }, [currentSectionIndex, currentGoal?.id, currentGoal?.sheetMusic?.storagePath]);
+
+  // Let the parent know which goal is up (e.g. so the metronome can use its target BPM)
+  useEffect(() => {
+    onActiveGoalChange?.(currentGoal);
+  }, [currentGoal, onActiveGoalChange]);
 
   const {
     isRecording,
@@ -381,6 +401,44 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
           minHeight: 0, // Important for flex child with overflow
         }}>
         <Stack spacing={2}>
+          {currentGoal.sheetMusic && (
+            <Button
+              size="lg"
+              variant="outlined"
+              color="neutral"
+              startDecorator={<BookOpen size={20} />}
+              onClick={() => setSheetMusicOpen(true)}
+            >
+              Open sheet music
+            </Button>
+          )}
+          {sheetMusicOpen && currentGoal.sheetMusic && user && (
+            <Suspense fallback={null}>
+              <SheetMusicViewer
+                uid={user.uid}
+                goal={currentGoal}
+                onClose={() => setSheetMusicOpen(false)}
+                toolbarExtra={
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Typography level="title-lg" sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                      {formatTimeMinutesSecondsCompact(timeRemaining)}
+                    </Typography>
+                    <IconButton
+                      variant="outlined"
+                      onClick={() => (isRunning ? pause() : start())}
+                      aria-label={isRunning ? 'Pause timer' : 'Resume timer'}
+                      sx={{ minWidth: 44, minHeight: 44 }}
+                    >
+                      {isRunning ? <PauseIcon size={20} /> : <PlayIcon size={20} />}
+                    </IconButton>
+                    <Button variant="solid" color="neutral" onClick={() => setSheetMusicOpen(false)} sx={{ minHeight: 44 }}>
+                      Notes &amp; next
+                    </Button>
+                  </Box>
+                }
+              />
+            </Suspense>
+          )}
           {/* Timer - more compact */}
           <Box sx={{ textAlign: 'center', py: 1 }}>
             <Typography level="h1" sx={{ fontSize: '3rem', fontVariantNumeric: 'tabular-nums' }}>
@@ -489,6 +547,9 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
             }
             return null;
           })()}
+
+          {/* musictheory.net exercise for ear (non deep-listening) and eye training */}
+          {usesMusicTheoryExercise(currentGoal) && <MusicTheoryExercise goal={currentGoal} />}
 
           {/* Goal Type Info - compact */}
           {currentGoal.type !== 'piece' && (
