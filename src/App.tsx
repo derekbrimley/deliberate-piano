@@ -21,10 +21,6 @@ import {
   addRepertoirePiece,
   updateUserProfile,
 } from './services/firebase';
-import {
-  clearSessionState,
-  hasActiveSession,
-} from './utils/storage';
 import { HistoryIcon, HomeIcon, SettingsIcon } from 'lucide-react';
 
 type AppState =
@@ -83,12 +79,6 @@ export const App: React.FC = () => {
 
     if (!user) {
       setAppState('auth');
-      return;
-    }
-
-    // Check if there's an active session in localStorage
-    if (hasActiveSession()) {
-      setAppState('session-flow');
       return;
     }
 
@@ -166,7 +156,6 @@ export const App: React.FC = () => {
   };
 
   const handleSessionComplete = () => {
-    clearSessionState();
     setSessionState(null);
     setAppState('main');
     updateUrl('main');

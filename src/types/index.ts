@@ -117,30 +117,3 @@ export interface PlannedSection {
   subGoalId?: string; // Present if practicing a specific sub-goal
   duration: number; // in seconds
 }
-
-// Session State (for active session)
-export interface SessionState {
-  plannedDuration: number;
-  actualDuration: number;
-  warmupDuration: number;
-  freePlayDuration: number;
-  scalePracticed?: string; // DEPRECATED: Key practiced during warmup - kept for backwards compatibility
-  warmupRepertoireId?: string; // Repertoire piece ID reviewed during warmup
-  selectedGoals: Goal[]; // Full goal objects for reference
-  plannedSections: PlannedSection[]; // The sections user plans to practice
-  currentPhase: 'warmup' | 'goal_work' | 'free_play' | 'end';
-  currentSectionIndex: number; // Index into plannedSections
-  currentGoalIndex: number; // Deprecated: kept for backwards compatibility
-  currentSubGoalIndex: number; // Deprecated: kept for backwards compatibility
-  sectionsCompleted: SessionLogSection[]; // Sections completed so far
-  subGoalsCompleted: SessionLogSubGoal[]; // Deprecated: kept for backwards compatibility
-  sessionStartTime: Date;
-  overallNotes: string;
-}
-
-// UI State
-export interface TimerState {
-  isRunning: boolean;
-  timeRemaining: number; // in seconds
-  duration: number; // in seconds
-}

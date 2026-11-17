@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Button,
@@ -28,13 +28,9 @@ export const FreePlayPhase: React.FC<FreePlayPhaseProps> = ({
 }) => {
   const [playedPieces, setPlayedPieces] = useState<Set<string>>(new Set());
   const { timeRemaining, isRunning, start, pause } = useTimer({
-    initialDuration: duration,
+    duration,
+    autoStart: true,
   });
-
-  // Auto-start timer when component mounts
-  useEffect(() => {
-    start();
-  }, [start]);
 
   const suggestedPieces = repertoirePieces
     .sort((a, b) => {
