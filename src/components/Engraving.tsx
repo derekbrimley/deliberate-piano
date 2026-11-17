@@ -50,7 +50,7 @@ export const Fermata: React.FC<{ size?: number }> = ({ size = 32 }) => (
 
 /**
  * Session progress as measures: finished blocks are filled, the current one is
- * bounded by bold barlines, and the session ends with a final barline.
+ * bounded by bold barlines.
  */
 export const MeasureProgress: React.FC<{ position: number; total: number }> = ({ position, total }) => (
   <Box
@@ -80,9 +80,7 @@ export const MeasureProgress: React.FC<{ position: number; total: number }> = ({
         </React.Fragment>
       );
     })}
-    {/* final barline (thin + thick); the thin line doubles as the last measure's barline */}
-    <Box sx={{ width: position === total ? '3px' : '1.5px', bgcolor: 'text.primary' }} />
-    <Box sx={{ width: '2px' }} />
-    <Box sx={{ width: '4px', bgcolor: 'text.primary' }} />
+    {/* closing barline of the last measure */}
+    <Box sx={{ width: position === total ? '3px' : '1px', bgcolor: 'text.primary' }} />
   </Box>
 );
