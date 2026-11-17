@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Box, Button, CircularProgress, IconButton, ToggleButtonGroup, Typography } from '@mui/joy';
 import { ChevronLeft, ChevronRight, Eraser, Hand, Highlighter, PenLine, Trash2, Undo2, X } from 'lucide-react';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -423,15 +424,27 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, goal, o
     error: 'Not saved',
   };
 
+  // Lock page scroll behind the viewer while it is open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   // ---------- UI ----------
   const touchBtn = { minWidth: 44, minHeight: 44 };
 
-  return (
+  // Portal to <body> so no ancestor's stacking context (cards, accordions)
+  // can paint over the viewer. The metronome (z 1100) still floats above it.
+  return createPortal(
     <Box
       sx={{
         position: 'fixed',
         inset: 0,
-        zIndex: 1000,
+        zIndex: 1050,
+        isolation: 'isolate',
         bgcolor: '#fff',
         color: '#000',
         display: 'flex',
@@ -537,7 +550,8 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, goal, o
           />
         </Box>
       </Box>
-    </Box>
+    </Box>,
+    document.body
   );
 };
 
