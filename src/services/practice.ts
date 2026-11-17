@@ -17,11 +17,14 @@ export const recordGoalSection = async (section: SessionLogSection, date: Date):
         completionHistory: section.status === 'complete' ? [...sg.completionHistory, date] : sg.completionHistory,
       };
     });
-    const focusDone = section.status === 'complete' && goal.focusSubGoalId === section.subGoalId;
+    const focusIds = goal.focusSubGoalIds ?? (goal.focusSubGoalId ? [goal.focusSubGoalId] : []);
     await updateGoal(goal.id, {
       subGoals,
-      // A finished focus is cleared so Today asks for the next one
-      ...(focusDone ? { focusSubGoalId: '' } : {}),
+      // A finished focus drops off the goal's focus list
+      ...(section.status === 'complete' && {
+        focusSubGoalIds: focusIds.filter(id => id !== section.subGoalId),
+        focusSubGoalId: '',
+      }),
     });
     return;
   }

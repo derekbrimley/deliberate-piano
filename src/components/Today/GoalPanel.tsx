@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import {
   Box,
   Button,
-  DialogTitle,
+  Checkbox,
   Divider,
   Drawer,
   FormControl,
@@ -10,21 +10,22 @@ import {
   IconButton,
   Input,
   ModalClose,
-  Option,
-  Select,
   Stack,
   Typography,
 } from '@mui/joy';
-import { CheckIcon } from 'lucide-react';
+import { CheckIcon, RotateCcw, Trash2 } from 'lucide-react';
 import { Goal, SubGoal } from '../../types';
 import { formatDate } from '../../utils/formatting';
-import { getFocusSubGoal, goalMinutes, hasSubGoals, newId, openSubGoals } from '../../utils/plan';
+import { getPickedFocuses, goalMinutes, hasSubGoals, isGoalFinished, newId, openSubGoals } from '../../utils/plan';
 import { usesMusicTheoryExercise } from '../../utils/musicTheory';
+import { updateGoal } from '../../services/firebase';
+import { useToast } from '../../context/ToastContext';
 import { SheetMusicControl } from '../SheetMusic/SheetMusicControl';
 import { MusicTheoryExerciseControl } from '../MusicTheory/MusicTheoryExerciseControl';
+import { CreateGoalModal } from '../Profile/CreateGoalModal';
 import { MinutesStepper } from './MinutesStepper';
 
-const TYPE_LABEL: Record<Goal['type'], string> = {
+export const TYPE_LABEL: Record<Goal['type'], string> = {
   piece: 'Piece',
   technical: 'Technique',
   'ear-training': 'Ear training',
@@ -34,42 +35,53 @@ const TYPE_LABEL: Record<Goal['type'], string> = {
 interface GoalPanelProps {
   uid: string;
   goal: Goal | null;
-  rotatedSubGoalId?: string; // technique review exercise that's due
   onPatch: (goalId: string, patch: Partial<Goal>) => void;
-  onReload: () => void; // after changes made by child controls (sheet music, exercise)
-  onOpenAllGoals: () => void;
+  onDelete: (goalId: string) => Promise<void>;
+  onReload: () => void; // after changes made by child controls (sheet music, exercise, details)
   onClose: () => void;
 }
 
-const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <Typography level="title-sm" sx={{ mb: 1 }}>{children}</Typography>
-);
-
-/** Side panel for everything about one goal, opened by tapping its row on Today. */
-export const GoalPanel: React.FC<GoalPanelProps> = ({ goal, ...rest }) => (
+/** Side panel with everything about one goal. Opened from Today and from All goals. */
+// Mounted only while open, so it stacks above whatever sheet opened it (All goals, Add goal).
+export const GoalPanel: React.FC<GoalPanelProps> = ({ goal, ...rest }) => !goal ? null : (
   <Drawer
     anchor="right"
     size="lg"
-    open={!!goal}
+    open
     onClose={rest.onClose}
-    slotProps={{ content: { sx: { width: { xs: '100%', sm: 520 }, p: 0 } } }}
+    slotProps={{ content: { sx: { width: { xs: '100%', sm: 540 }, p: 0 } } }}
   >
-    {goal && <GoalPanelBody key={goal.id} goal={goal} {...rest} />}
+    <GoalPanelBody key={goal.id} goal={goal} {...rest} />
   </Drawer>
 );
 
+const Section: React.FC<{ title: string; action?: React.ReactNode; children: React.ReactNode }> = ({ title, action, children }) => (
+  <Box>
+    <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, minHeight: 32 }}>
+      <Typography level="title-md" sx={{ flex: 1 }}>{title}</Typography>
+      {action}
+    </Box>
+    {children}
+  </Box>
+);
+
 const GoalPanelBody: React.FC<Omit<GoalPanelProps, 'goal'> & { goal: Goal }> = ({
-  uid, goal, rotatedSubGoalId, onPatch, onReload, onOpenAllGoals, onClose,
+  uid, goal, onPatch, onDelete, onReload, onClose,
 }) => {
+  const { showError, showSuccess } = useToast();
   const [name, setName] = useState(goal.name);
   const [bpm, setBpm] = useState(goal.targetBpm ? String(goal.targetBpm) : '');
   const [newFocus, setNewFocus] = useState('');
+  const [showFinished, setShowFinished] = useState(false);
+  const [showAllNotes, setShowAllNotes] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null); // sub-goal id or 'goal'
+  const [editOpen, setEditOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const open = openSubGoals(goal);
-  const finishedCount = (goal.subGoals?.length || 0) - open.length;
-  const focus = getFocusSubGoal(goal, rotatedSubGoalId);
-  const rotated = open.find(sg => sg.id === rotatedSubGoalId);
-  const wholeLabel = goal.type === 'piece' ? 'Whole piece' : 'No specific focus';
+  const finished = (goal.subGoals || []).filter(sg => sg.status === 'complete');
+  const pickedIds = getPickedFocuses(goal).map(sg => sg.id);
+  const onToday = goal.active !== false && !isGoalFinished(goal);
 
   const saveName = () => {
     const trimmed = name.trim();
@@ -83,6 +95,10 @@ const GoalPanelBody: React.FC<Omit<GoalPanelProps, 'goal'> & { goal: Goal }> = (
     if (next !== goal.targetBpm) onPatch(goal.id, { targetBpm: next ?? (null as unknown as number) });
   };
 
+  const setFocuses = (ids: string[]) => onPatch(goal.id, { focusSubGoalIds: ids, focusSubGoalId: '' });
+  const togglePicked = (id: string, on: boolean) =>
+    setFocuses(on ? [...pickedIds, id] : pickedIds.filter(x => x !== id));
+
   const addFocus = () => {
     const trimmed = newFocus.trim();
     if (!trimmed) return;
@@ -95,31 +111,77 @@ const GoalPanelBody: React.FC<Omit<GoalPanelProps, 'goal'> & { goal: Goal }> = (
       completionHistory: [],
       ...(goal.type === 'technical' && { trainingStatus: 'learning' as const }),
     };
-    onPatch(goal.id, { subGoals: [...(goal.subGoals || []), sg], focusSubGoalId: sg.id });
+    onPatch(goal.id, { subGoals: [...(goal.subGoals || []), sg], focusSubGoalIds: [...pickedIds, sg.id], focusSubGoalId: '' });
     setNewFocus('');
   };
 
-  const finishSubGoal = (sg: SubGoal) => {
-    const now = new Date();
+  const setSubGoalStatus = (sg: SubGoal, status: 'needs_work' | 'complete') => {
     onPatch(goal.id, {
       subGoals: (goal.subGoals || []).map(s =>
-        s.id === sg.id ? { ...s, status: 'complete' as const, completionHistory: [...s.completionHistory, now] } : s
+        s.id === sg.id
+          ? { ...s, status, completionHistory: status === 'complete' ? [...s.completionHistory, new Date()] : s.completionHistory }
+          : s
       ),
-      ...(goal.focusSubGoalId === sg.id && { focusSubGoalId: '' }),
+      ...(status === 'complete' && { focusSubGoalIds: pickedIds.filter(x => x !== sg.id), focusSubGoalId: '' }),
     });
   };
 
-  const notes = [...(focus?.noteHistory || []), ...(goal.noteHistory || [])]
-    .sort((a, b) => b.date.getTime() - a.date.getTime())
-    .slice(0, 3);
+  const deleteSubGoal = (sg: SubGoal) => {
+    if (confirmDelete !== sg.id) return setConfirmDelete(sg.id);
+    setConfirmDelete(null);
+    onPatch(goal.id, {
+      subGoals: (goal.subGoals || []).filter(s => s.id !== sg.id),
+      focusSubGoalIds: pickedIds.filter(x => x !== sg.id),
+    });
+  };
+
+  // Full edit form (description, deep-listening songs, sub-goal details, …)
+  const saveDetails = async (_id: string, data: any) => {
+    setSaving(true);
+    try {
+      const updates: Partial<Goal> = { name: data.name, type: data.type };
+      if (data.active !== undefined) updates.active = data.active;
+      if (data.targetBpm) updates.targetBpm = data.targetBpm;
+      if (data.type === 'piece' && data.subGoals) updates.subGoals = data.subGoals;
+      if (data.type === 'technical') {
+        updates.technicalDescription = data.technicalDescription;
+        if (data.subGoals) updates.subGoals = data.subGoals;
+      }
+      if (data.type === 'ear-training') {
+        updates.earTrainingType = data.earTrainingType;
+        if (data.deepListeningSongs) updates.deepListeningSongs = data.deepListeningSongs;
+      }
+      if (data.type === 'eye-training') updates.eyeTrainingFocus = data.eyeTrainingFocus;
+      await updateGoal(goal.id, updates);
+      showSuccess('Goal updated');
+      setEditOpen(false);
+      onReload();
+    } catch (e) {
+      showError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Notes from the goal and all its sub-goals, newest first
+  const notes = [
+    ...(goal.noteHistory || []).map(n => ({ ...n, label: '' })),
+    ...(goal.subGoals || []).flatMap(sg => (sg.noteHistory || []).map(n => ({ ...n, label: sg.name }))),
+  ].sort((a, b) => b.date.getTime() - a.date.getTime());
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      <DialogTitle sx={{ px: 2.5, pt: 2.5 }}>
-        <Typography level="body-sm">{TYPE_LABEL[goal.type]}</Typography>
-      </DialogTitle>
+      <Box sx={{ px: 2.5, pt: 2, pb: 1, pr: 7 }}>
+        <Typography level="body-sm">
+          {TYPE_LABEL[goal.type]}
+          {goal.type === 'ear-training' && goal.earTrainingType && ` · ${goal.earTrainingType.replace('-', ' ')}`}
+          {' · '}
+          {onToday ? 'on Today' : isGoalFinished(goal) ? 'finished' : 'not on Today'}
+        </Typography>
+      </Box>
       <ModalClose size="lg" />
-      <Stack spacing={3} sx={{ px: 2.5, pb: 3, overflow: 'auto', flex: 1 }}>
+
+      <Stack spacing={3} sx={{ px: 2.5, pb: 4, overflow: 'auto', flex: 1 }}>
         <Input
           size="lg"
           value={name}
@@ -129,6 +191,16 @@ const GoalPanelBody: React.FC<Omit<GoalPanelProps, 'goal'> & { goal: Goal }> = (
           sx={{ fontSize: 'xl', fontWeight: 'lg' }}
           aria-label="Goal name"
         />
+
+        {!onToday && goal.active === false && (
+          <Button
+            size="lg"
+            onClick={() => onPatch(goal.id, { active: true, inPlan: true })}
+            sx={{ bgcolor: '#000', minHeight: 48 }}
+          >
+            Add to Today
+          </Button>
+        )}
 
         <Stack direction="row" spacing={3} sx={{ flexWrap: 'wrap', gap: 2 }}>
           <FormControl>
@@ -150,109 +222,178 @@ const GoalPanelBody: React.FC<Omit<GoalPanelProps, 'goal'> & { goal: Goal }> = (
           </FormControl>
         </Stack>
 
+        {goal.technicalDescription && (
+          <Section title="Description">
+            <Typography>{goal.technicalDescription}</Typography>
+          </Section>
+        )}
+
         {hasSubGoals(goal) && (
-          <Box>
-            <SectionLabel>Focus</SectionLabel>
-            <Select
-              size="lg"
-              value={goal.focusSubGoalId && open.some(sg => sg.id === goal.focusSubGoalId) ? goal.focusSubGoalId : ''}
-              onChange={(_, v) => onPatch(goal.id, { focusSubGoalId: (v as string) || '' })}
-            >
-              <Option value="">{rotated ? `Review due: ${rotated.name}` : wholeLabel}</Option>
-              {open.map(sg => (
-                <Option key={sg.id} value={sg.id}>{sg.name}</Option>
-              ))}
-            </Select>
-            <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+          <Section title={goal.type === 'piece' ? 'Sections & focuses' : 'Exercises'}>
+            <Typography level="body-sm" sx={{ mb: 1 }}>
+              Tick what to work on next session; practice steps through them in order.
+            </Typography>
+            <Stack>
+              {open.map(sg => {
+                const pickedAt = pickedIds.indexOf(sg.id);
+                return (
+                  <Box
+                    key={sg.id}
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: 52, borderBottom: '1px solid', borderColor: 'divider' }}
+                  >
+                    <Checkbox
+                      size="lg"
+                      checked={pickedAt >= 0}
+                      onChange={e => togglePicked(sg.id, e.target.checked)}
+                      slotProps={{ input: { 'aria-label': `Focus on ${sg.name}` } }}
+                    />
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography>
+                        {pickedAt >= 0 && pickedIds.length > 1 && <b>{pickedAt + 1}. </b>}
+                        {sg.name}
+                      </Typography>
+                      {(sg.trainingStatus === 'review' || sg.noteHistory?.length > 0) && (
+                        <Typography level="body-xs">
+                          {[sg.trainingStatus === 'review' && 'review rotation', sg.noteHistory?.length && `${sg.noteHistory.length} note${sg.noteHistory.length === 1 ? '' : 's'}`]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </Typography>
+                      )}
+                    </Box>
+                    <IconButton variant="plain" color="neutral" aria-label={`Mark ${sg.name} done`} onClick={() => setSubGoalStatus(sg, 'complete')} sx={{ minWidth: 44, minHeight: 44 }}>
+                      <CheckIcon size={18} />
+                    </IconButton>
+                    <IconButton
+                      variant={confirmDelete === sg.id ? 'solid' : 'plain'}
+                      color={confirmDelete === sg.id ? 'danger' : 'neutral'}
+                      aria-label={confirmDelete === sg.id ? `Tap again to delete ${sg.name}` : `Delete ${sg.name}`}
+                      onClick={() => deleteSubGoal(sg)}
+                      sx={{ minWidth: 44, minHeight: 44 }}
+                    >
+                      <Trash2 size={18} />
+                    </IconButton>
+                  </Box>
+                );
+              })}
+            </Stack>
+            <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
               <Input
                 value={newFocus}
                 onChange={e => setNewFocus(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && addFocus()}
-                placeholder={goal.type === 'piece' ? 'New focus, e.g. m. 17–32 hands together' : 'New exercise'}
+                placeholder={goal.type === 'piece' ? 'New focus, e.g. LH page 1' : 'New exercise'}
                 sx={{ flex: 1, minHeight: 44 }}
               />
               <Button variant="outlined" color="neutral" onClick={addFocus} disabled={!newFocus.trim()} sx={{ minHeight: 44 }}>
                 Add
               </Button>
             </Stack>
-
-            {open.length > 0 && (
-              <Stack sx={{ mt: 1.5 }}>
-                {open.map(sg => (
-                  <Box key={sg.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Typography sx={{ flex: 1 }}>
-                      {sg.name}
-                      {sg.trainingStatus === 'review' && <Typography level="body-xs"> · review</Typography>}
-                    </Typography>
-                    <IconButton
-                      variant="plain"
-                      color="neutral"
-                      aria-label={`Mark ${sg.name} done`}
-                      onClick={() => finishSubGoal(sg)}
-                      sx={{ minWidth: 44, minHeight: 44 }}
-                    >
-                      <CheckIcon size={18} />
-                    </IconButton>
-                  </Box>
-                ))}
-              </Stack>
+            {finished.length > 0 && (
+              <Box sx={{ mt: 1.5 }}>
+                <Button variant="plain" color="neutral" onClick={() => setShowFinished(s => !s)} sx={{ px: 0 }}>
+                  {showFinished ? 'Hide finished' : `Show finished (${finished.length})`}
+                </Button>
+                {showFinished &&
+                  finished.map(sg => (
+                    <Box key={sg.id} sx={{ display: 'flex', alignItems: 'center', gap: 1, minHeight: 48, borderBottom: '1px solid', borderColor: 'divider' }}>
+                      <Typography sx={{ flex: 1, textDecoration: 'line-through' }}>{sg.name}</Typography>
+                      {sg.completionHistory.length > 0 && (
+                        <Typography level="body-xs">{formatDate(sg.completionHistory[sg.completionHistory.length - 1])}</Typography>
+                      )}
+                      <IconButton variant="plain" color="neutral" aria-label={`Reopen ${sg.name}`} onClick={() => setSubGoalStatus(sg, 'needs_work')} sx={{ minWidth: 44, minHeight: 44 }}>
+                        <RotateCcw size={18} />
+                      </IconButton>
+                    </Box>
+                  ))}
+              </Box>
             )}
-            {finishedCount > 0 && (
-              <Typography level="body-sm" sx={{ mt: 1 }}>{finishedCount} finished</Typography>
-            )}
-          </Box>
+          </Section>
         )}
 
         {hasSubGoals(goal) && (
-          <Box>
-            <SectionLabel>Sheet music</SectionLabel>
-            <SheetMusicControl
-              uid={uid}
-              owner={{ kind: 'goal', id: goal.id, name: goal.name, sheetMusic: goal.sheetMusic }}
-              onChanged={onReload}
-            />
-          </Box>
+          <Section title="Sheet music">
+            <SheetMusicControl uid={uid} owner={{ kind: 'goal', id: goal.id, name: goal.name, sheetMusic: goal.sheetMusic }} onChanged={onReload} />
+          </Section>
         )}
 
         {usesMusicTheoryExercise(goal) && (
-          <Box>
-            <SectionLabel>Exercise</SectionLabel>
+          <Section title="Exercise">
             <MusicTheoryExerciseControl key={goal.musicTheoryExerciseUrl || ''} goal={goal} onChanged={onReload} />
-          </Box>
+          </Section>
         )}
 
-        {notes.length > 0 && (
-          <Box>
-            <SectionLabel>Recent notes</SectionLabel>
-            <Stack spacing={1}>
-              {notes.map((n, i) => (
-                <Box key={i}>
-                  <Typography level="body-xs">{formatDate(n.date)}</Typography>
-                  <Typography level="body-sm">{n.note}</Typography>
-                </Box>
-              ))}
-            </Stack>
-          </Box>
+        {goal.deepListeningSongs && goal.deepListeningSongs.length > 0 && (
+          <Section title="Songs">
+            {goal.deepListeningSongs.map(s => (
+              <Typography key={s.id} sx={{ py: 0.5, textDecoration: s.listenedTo ? 'line-through' : undefined }}>{s.name}</Typography>
+            ))}
+          </Section>
         )}
+
+        <Section title={`Notes${notes.length ? ` (${notes.length})` : ''}`}>
+          {notes.length === 0 && <Typography level="body-sm">No notes yet. Notes you write while practicing show up here.</Typography>}
+          <Stack spacing={1.25}>
+            {(showAllNotes ? notes : notes.slice(0, 3)).map((n, i) => (
+              <Box key={i}>
+                <Typography level="body-xs">
+                  {formatDate(n.date)}
+                  {n.label && ` · ${n.label}`}
+                </Typography>
+                <Typography level="body-sm">{n.note}</Typography>
+              </Box>
+            ))}
+          </Stack>
+          {notes.length > 3 && (
+            <Button variant="plain" color="neutral" onClick={() => setShowAllNotes(s => !s)} sx={{ px: 0, mt: 0.5 }}>
+              {showAllNotes ? 'Show fewer' : `Show all ${notes.length}`}
+            </Button>
+          )}
+        </Section>
 
         <Divider />
         <Stack spacing={1}>
+          <Button variant="outlined" color="neutral" onClick={() => setEditOpen(true)} sx={{ minHeight: 48 }}>
+            Edit details (type, description, songs)
+          </Button>
+          {!hasSubGoals(goal) && goal.status !== 'complete' && (
+            <Button variant="outlined" color="neutral" onClick={() => onPatch(goal.id, { status: 'complete' })} sx={{ minHeight: 48 }}>
+              Mark goal finished
+            </Button>
+          )}
+          {!hasSubGoals(goal) && goal.status === 'complete' && (
+            <Button variant="outlined" color="neutral" onClick={() => onPatch(goal.id, { status: 'needs_work', active: true })} sx={{ minHeight: 48 }}>
+              Not finished after all
+            </Button>
+          )}
+          {goal.active !== false && (
+            <Button variant="outlined" color="neutral" onClick={() => onPatch(goal.id, { active: false })} sx={{ minHeight: 48 }}>
+              Hide from Today
+            </Button>
+          )}
           <Button
-            variant="outlined"
-            color="neutral"
-            onClick={() => {
-              onPatch(goal.id, { active: false });
+            variant={confirmDelete === 'goal' ? 'solid' : 'plain'}
+            color="danger"
+            startDecorator={<Trash2 size={18} />}
+            onClick={async () => {
+              if (confirmDelete !== 'goal') return setConfirmDelete('goal');
+              await onDelete(goal.id);
               onClose();
             }}
             sx={{ minHeight: 48 }}
           >
-            Hide from Today
-          </Button>
-          <Button variant="plain" color="neutral" onClick={onOpenAllGoals} sx={{ minHeight: 48 }}>
-            More (delete, songs, description) in All goals
+            {confirmDelete === 'goal' ? 'Tap again to delete this goal and its notes' : 'Delete goal'}
           </Button>
         </Stack>
       </Stack>
+
+      <CreateGoalModal
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        onCreate={async () => {}}
+        onUpdate={saveDetails}
+        loading={saving}
+        initialGoal={goal}
+      />
     </Box>
   );
 };

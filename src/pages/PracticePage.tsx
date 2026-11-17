@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Box, Button, Modal, ModalDialog, Stack, Typography } from '@mui/joy';
-import { ActiveSession, Goal, PracticeSessionLog, RepertoirePiece, SessionLogSection } from '../types';
+import { ActiveSession, Goal, PracticeSessionLog, RepertoirePiece, SessionLogSection, SubGoal } from '../types';
 import { createPracticeSession, getGoals, getRepertoirePieces, setActiveSession } from '../services/firebase';
 import { markPiecesPlayed, recordGoalSection } from '../services/practice';
 import { useAuth } from '../context/AuthContext';
@@ -70,9 +70,11 @@ export const PracticePage: React.FC<PracticePageProps> = ({ session: initial, on
     })();
   };
 
-  const handleGoalDone = (section: SessionLogSection | null) => {
-    if (!section) return advance({});
-    advance({ sections: [...session.sections, section] }, () => recordGoalSection(section, startedAt));
+  const handleGoalDone = (sections: SessionLogSection[]) => {
+    if (sections.length === 0) return advance({});
+    advance({ sections: [...session.sections, ...sections] }, async () => {
+      for (const section of sections) await recordGoalSection(section, startedAt);
+    });
   };
 
   const handleSave = async (overallNotes: string) => {
@@ -90,7 +92,7 @@ export const PracticePage: React.FC<PracticePageProps> = ({ session: initial, on
       selectedGoals: [...new Set(session.blocks.flatMap(b => (b.kind === 'goal' ? [b.goalId] : [])))],
       sectionsCompleted: session.sections,
       subGoalsCompleted: session.sections,
-      freePlayRepertoire: session.playedPieces,
+      freePlayRepertoire: [],
       overallNotes,
     };
     try {
@@ -151,9 +153,7 @@ export const PracticePage: React.FC<PracticePageProps> = ({ session: initial, on
         minutes={block.minutes}
         pieces={pieces}
         {...blockProps}
-        onDone={ids =>
-          advance({ playedPieces: [...new Set([...session.playedPieces, ...ids])] }, () => markPiecesPlayed(ids, startedAt))
-        }
+        onDone={() => advance({})}
       />
     );
   } else if (!activeGoal) {
@@ -170,7 +170,9 @@ export const PracticePage: React.FC<PracticePageProps> = ({ session: initial, on
         key={session.index}
         uid={user.uid}
         goal={activeGoal}
-        subGoal={activeGoal.subGoals?.find(sg => sg.id === block.subGoalId)}
+        focuses={(block.subGoalIds ?? (block.subGoalId ? [block.subGoalId] : []))
+          .map(id => activeGoal.subGoals?.find(sg => sg.id === id))
+          .filter((sg): sg is SubGoal => !!sg)}
         minutes={block.minutes}
         {...blockProps}
         onDone={handleGoalDone}

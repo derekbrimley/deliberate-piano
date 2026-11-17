@@ -101,7 +101,8 @@ export interface Goal {
   inPlan?: boolean; // checked on Today (default true)
   defaultMinutes?: number; // block length on Today (default 5)
   order?: number; // position on Today
-  focusSubGoalId?: string; // sub-goal to work on next (piece/technical)
+  focusSubGoalIds?: string[]; // sub-goals to work on next (piece/technical), stepped through in order
+  focusSubGoalId?: string; // DEPRECATED: single focus from the first Today version
 
   // For goals without sub-goals, track status directly
   status?: 'needs_work' | 'complete';
@@ -158,7 +159,7 @@ export interface PracticeSessionLog {
 // A block in a practice session, in order
 export type SessionBlock =
   | { kind: 'warmup'; minutes: number; scale: string; repertoireId?: string }
-  | { kind: 'goal'; minutes: number; goalId: string; subGoalId?: string }
+  | { kind: 'goal'; minutes: number; goalId: string; subGoalIds?: string[]; subGoalId?: string /* deprecated */ }
   | { kind: 'freePlay'; minutes: number };
 
 // In-progress session. Stored on the user profile after every block so a refresh
@@ -170,5 +171,4 @@ export interface ActiveSession {
   sections: SessionLogSection[]; // finished goal blocks
   scalePracticed?: string;
   warmupRepertoireId?: string;
-  playedPieces: string[];
 }

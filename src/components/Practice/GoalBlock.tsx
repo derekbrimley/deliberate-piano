@@ -12,7 +12,7 @@ import {
   Textarea,
   Typography,
 } from '@mui/joy';
-import { BookOpen, ChevronDown, ChevronRight, Lightbulb, MicIcon, StopCircleIcon } from 'lucide-react';
+import { BookOpen, CheckIcon, ChevronDown, ChevronRight, Lightbulb, MicIcon, StopCircleIcon } from 'lucide-react';
 import { Goal, SessionLogSection, SubGoal } from '../../types';
 import { useTimer } from '../../hooks/useTimer';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
@@ -31,34 +31,59 @@ const SheetMusicViewer = lazy(() => import('../SheetMusic/SheetMusicViewer'));
 interface GoalBlockProps {
   uid: string;
   goal: Goal;
-  subGoal?: SubGoal;
+  focuses: SubGoal[]; // stepped through one by one; empty = the goal as a whole
   minutes: number;
   position: number;
   total: number;
   isLast: boolean;
   onExit: () => void;
-  onDone: (section: SessionLogSection | null) => void;
+  onDone: (sections: SessionLogSection[]) => void; // one per focus worked on ([] = skipped)
+}
+
+type Status = 'needs_work' | 'complete';
+interface Entry {
+  notes: string;
+  status: Status;
 }
 
 export const GoalBlock: React.FC<GoalBlockProps> = ({
-  uid, goal, subGoal, minutes, position, total, isLast, onExit, onDone,
+  uid, goal, focuses, minutes, position, total, isLast, onExit, onDone,
 }) => {
   const { timeRemaining, isRunning, start, pause } = useTimer({ duration: minutes * 60, autoStart: true });
   const toggle = () => (isRunning ? pause() : start());
   const [startedAt] = useState(() => Date.now());
-  const [notes, setNotes] = useState('');
-  const [status, setStatus] = useState<'needs_work' | 'complete'>('needs_work');
+  // One entry per focus (or one for the whole goal)
+  const [entries, setEntries] = useState<Entry[]>(() =>
+    Array.from({ length: Math.max(1, focuses.length) }, () => ({ notes: '', status: 'needs_work' as Status }))
+  );
+  const [focusIndex, setFocusIndex] = useState(0);
+  const [visited, setVisited] = useState(0); // highest focus index reached
   const [busy, setBusy] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [sheetMusicOpen, setSheetMusicOpen] = useState(!!goal.sheetMusic);
   const recorder = useAudioRecorder();
 
+  const focus = focuses[focusIndex] as SubGoal | undefined;
+  const entry = entries[focusIndex];
+  const setEntry = (patch: Partial<Entry>) =>
+    setEntries(prev => prev.map((e, i) => (i === focusIndex ? { ...e, ...patch } : e)));
+  const goToFocus = (i: number) => {
+    setFocusIndex(i);
+    setVisited(v => Math.max(v, i));
+    setHistoryOpen(false);
+  };
+
   const isDeepListening = goal.type === 'ear-training' && goal.earTrainingType === 'deep-listening';
   // A whole-piece block for a goal with open sub-goals can't be "done" as a whole
-  const showStatus = !isDeepListening && !(!subGoal && openSubGoals(goal).length > 0);
+  const showStatus = !isDeepListening && !(!focus && openSubGoals(goal).length > 0);
+  const focusLabel = focus
+    ? focuses.length > 1
+      ? `Focus ${focusIndex + 1}/${focuses.length}: ${focus.name}`
+      : `Focus: ${focus.name}`
+    : undefined;
 
   // AI suggestion: only for pieces/technique without specific sub-goals
-  const showSuggestion = !subGoal && wantsAiSuggestion(goal);
+  const showSuggestion = focuses.length === 0 && wantsAiSuggestion(goal);
   const [suggestion, setSuggestion] = useState('');
   const [loadingSuggestion, setLoadingSuggestion] = useState(showSuggestion);
   useEffect(() => {
@@ -81,7 +106,24 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
 
   const handleNext = async () => {
     setBusy(true);
-    let finalNotes = notes.trim();
+    const actualDuration = Math.round((Date.now() - startedAt) / 1000);
+    if (focuses.length > 0) {
+      // Log each focus you got to; ones you never opened are left for next time
+      onDone(
+        focuses.slice(0, visited + 1).map((f, i) => ({
+          goalId: goal.id,
+          goalName: goal.name,
+          subGoalId: f.id,
+          subGoalName: f.name,
+          plannedDuration: Math.round((minutes * 60) / focuses.length),
+          actualDuration: Math.round(actualDuration / (visited + 1)),
+          status: entries[i].status,
+          ...(entries[i].notes.trim() && { notes: entries[i].notes.trim() }),
+        }))
+      );
+      return;
+    }
+    let finalNotes = entries[0].notes.trim();
     if (isDeepListening && song) {
       const now = new Date();
       try {
@@ -95,18 +137,19 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
       }
       finalNotes = finalNotes ? `${finalNotes}\n\nListened to: ${song.name}` : `Listened to: ${song.name}`;
     }
-    onDone({
-      goalId: goal.id,
-      goalName: goal.name,
-      ...(subGoal && { subGoalId: subGoal.id, subGoalName: subGoal.name }),
-      plannedDuration: minutes * 60,
-      actualDuration: Math.round((Date.now() - startedAt) / 1000),
-      status: showStatus ? status : 'needs_work',
-      ...(finalNotes && { notes: finalNotes }),
-    });
+    onDone([
+      {
+        goalId: goal.id,
+        goalName: goal.name,
+        plannedDuration: minutes * 60,
+        actualDuration,
+        status: showStatus ? entries[0].status : 'needs_work',
+        ...(finalNotes && { notes: finalNotes }),
+      },
+    ]);
   };
 
-  const history = [...(subGoal?.noteHistory || goal.noteHistory || [])].reverse();
+  const history = [...(focus ? focus.noteHistory || [] : goal.noteHistory || [])].reverse();
 
   return (
     <>
@@ -114,13 +157,100 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
         position={position}
         total={total}
         title={goal.name}
-        subtitle={subGoal ? `Focus: ${subGoal.name}` : goal.targetBpm ? `Target ${goal.targetBpm} bpm` : undefined}
+        subtitle={focusLabel ?? (goal.targetBpm ? `Target ${goal.targetBpm} bpm` : undefined)}
         timer={{ timeRemaining, isRunning, toggle }}
         onExit={onExit}
       />
 
       <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         <Stack spacing={2.5} sx={{ p: 2, maxWidth: 820, mx: 'auto' }}>
+          {focuses.length > 1 && (
+            <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
+              {focuses.map((f, i) => (
+                <Button
+                  key={f.id}
+                  variant={i === focusIndex ? 'solid' : 'outlined'}
+                  color="neutral"
+                  onClick={() => goToFocus(i)}
+                  startDecorator={i <= visited && entries[i].status === 'complete' ? <CheckIcon size={16} /> : undefined}
+                  sx={{ minHeight: 44, ...(i === focusIndex && { bgcolor: '#000' }) }}
+                >
+                  {i + 1}. {f.name}
+                </Button>
+              ))}
+            </Stack>
+          )}
+
+          <Box sx={{ border: '2px solid', borderColor: 'neutral.outlinedBorder', borderRadius: 'md', p: 2 }}>
+            <Stack spacing={2}>
+              {focus && (
+                <Box>
+                  {focuses.length > 1 && (
+                    <Typography level="body-sm">Focus {focusIndex + 1} of {focuses.length}</Typography>
+                  )}
+                  <Typography level="h3">{focus.name}</Typography>
+                </Box>
+              )}
+
+              {history.length > 0 && (
+                <Box>
+                  <Button
+                    variant="plain"
+                    color="neutral"
+                    onClick={() => setHistoryOpen(o => !o)}
+                    startDecorator={historyOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                    sx={{ px: 0 }}
+                  >
+                    {historyOpen ? 'Previous notes' : `Last note: ${history[0].note.length > 60 ? history[0].note.slice(0, 60) + '…' : history[0].note}`}
+                  </Button>
+                  {historyOpen && (
+                    <Stack spacing={1} sx={{ mt: 1 }}>
+                      {history.map((h, i) => (
+                        <Box key={i} sx={{ pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+                          <Typography level="body-xs">{formatDateTime(h.date)}</Typography>
+                          <Typography level="body-sm">{h.note}</Typography>
+                        </Box>
+                      ))}
+                    </Stack>
+                  )}
+                </Box>
+              )}
+
+              <Textarea
+                placeholder="Notes for next time…"
+                value={entry.notes}
+                onChange={e => setEntry({ notes: e.target.value })}
+                minRows={2}
+                size="lg"
+              />
+
+              <Stack direction="row" spacing={2} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1.5 }}>
+                {showStatus && (
+                  <RadioGroup
+                    orientation="horizontal"
+                    value={entry.status}
+                    onChange={e => setEntry({ status: e.target.value as Status })}
+                    sx={{ gap: 2, flex: 1 }}
+                  >
+                    <Radio value="needs_work" label="Needs work" />
+                    <Radio value="complete" label="Done" />
+                  </RadioGroup>
+                )}
+                {focusIndex < focuses.length - 1 && (
+                  <Button
+                    variant="outlined"
+                    color="neutral"
+                    endDecorator={<ChevronRight size={18} />}
+                    onClick={() => goToFocus(focusIndex + 1)}
+                    sx={{ minHeight: 48, ml: 'auto' }}
+                  >
+                    Next focus
+                  </Button>
+                )}
+              </Stack>
+            </Stack>
+          </Box>
+
           {goal.sheetMusic && (
             <Button
               size="lg"
@@ -139,6 +269,25 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
                 uid={uid}
                 owner={{ kind: 'goal', id: goal.id, name: goal.name, sheetMusic: goal.sheetMusic }}
                 onClose={() => setSheetMusicOpen(false)}
+                banner={
+                  focusLabel && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Typography level="title-md" noWrap sx={{ flex: 1, minWidth: 0 }}>{focusLabel}</Typography>
+                      {focusIndex < focuses.length - 1 && (
+                        <Button
+                          size="sm"
+                          variant="outlined"
+                          color="neutral"
+                          endDecorator={<ChevronRight size={16} />}
+                          onClick={() => goToFocus(focusIndex + 1)}
+                          sx={{ minHeight: 40 }}
+                        >
+                          Next focus
+                        </Button>
+                      )}
+                    </Box>
+                  )
+                }
                 toolbarExtra={
                   <ViewerSessionControls
                     timeRemaining={timeRemaining}
@@ -206,38 +355,6 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
             </Stack>
           )}
 
-          {history.length > 0 && (
-            <Box>
-              <Button
-                variant="plain"
-                color="neutral"
-                onClick={() => setHistoryOpen(o => !o)}
-                startDecorator={historyOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                sx={{ px: 0 }}
-              >
-                Previous notes ({history.length})
-              </Button>
-              {historyOpen && (
-                <Stack spacing={1} sx={{ mt: 1 }}>
-                  {history.map((entry, i) => (
-                    <Box key={i} sx={{ pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
-                      <Typography level="body-xs">{formatDateTime(entry.date)}</Typography>
-                      <Typography level="body-sm">{entry.note}</Typography>
-                    </Box>
-                  ))}
-                </Stack>
-              )}
-            </Box>
-          )}
-
-          <Textarea
-            placeholder="Notes for next time…"
-            value={notes}
-            onChange={e => setNotes(e.target.value)}
-            minRows={3}
-            size="lg"
-          />
-
           {!isDeepListening && (
             <Box>
               {!recorder.isRecording && !recorder.audioURL && (
@@ -261,19 +378,7 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
         </Stack>
       </Box>
 
-      <BlockFooter isLast={isLast} onNext={handleNext} onSkip={() => onDone(null)} busy={busy}>
-        {showStatus && (
-          <RadioGroup
-            orientation="horizontal"
-            value={status}
-            onChange={e => setStatus(e.target.value as 'needs_work' | 'complete')}
-            sx={{ gap: 2 }}
-          >
-            <Radio value="needs_work" label="Needs work" />
-            <Radio value="complete" label={subGoal ? 'Done with this focus' : 'Done'} />
-          </RadioGroup>
-        )}
-      </BlockFooter>
+      <BlockFooter isLast={isLast} onNext={handleNext} onSkip={() => onDone([])} busy={busy} />
     </>
   );
 };

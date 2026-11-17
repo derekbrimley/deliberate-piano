@@ -60,11 +60,3 @@ export const getNextWarmupRepertoire = (
   // Return the least-recently-used piece
   return piecesWithLastUsed[0].piece;
 };
-
-/** Pieces not played for the longest time first (never played first of all). */
-export const sortByLeastRecentlyPlayed = (pieces: RepertoirePiece[]): RepertoirePiece[] =>
-  [...pieces].sort((a, b) => {
-    const ta = a.lastPlayedDate ? a.lastPlayedDate.getTime() : 0;
-    const tb = b.lastPlayedDate ? b.lastPlayedDate.getTime() : 0;
-    return ta - tb || a.name.localeCompare(b.name);
-  });

@@ -82,6 +82,7 @@ interface SheetMusicViewerProps {
   onClose: () => void;
   /** Rendered at the right end of the toolbar, e.g. the section timer. */
   toolbarExtra?: React.ReactNode;
+  banner?: React.ReactNode; // shown under the toolbar, e.g. the current practice focus
 }
 
 /**
@@ -93,7 +94,7 @@ interface SheetMusicViewerProps {
  * rejection); two fingers still pinch and pan so you can zoom while annotating.
  * Arrow and PageUp/PageDown keys (Bluetooth page-turn pedals) also turn pages.
  */
-export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, onClose, toolbarExtra }) => {
+export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, onClose, toolbarExtra, banner }) => {
   const sheetMusic = owner.sheetMusic;
   const ownerRef = { kind: owner.kind, id: owner.id };
 
@@ -854,6 +855,11 @@ export const SheetMusicViewer: React.FC<SheetMusicViewerProps> = ({ uid, owner, 
 
           <Box sx={{ flex: '1 1 auto' }} />
           {toolbarExtra}
+        </Box>
+      )}
+      {chromeVisible && banner && (
+        <Box sx={{ px: 1.5, py: 0.5, borderBottom: '2px solid #000', bgcolor: '#fff', color: '#000', flexShrink: 0 }}>
+          {banner}
         </Box>
       )}
 
