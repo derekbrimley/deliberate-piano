@@ -9,10 +9,11 @@ import {
   RadioGroup,
   Select,
   Stack,
+  IconButton,
   Textarea,
   Typography,
 } from '@mui/joy';
-import { BookOpen, CheckIcon, ChevronDown, ChevronRight, Lightbulb, MicIcon, StopCircleIcon } from 'lucide-react';
+import { BookOpen, CheckIcon, ChevronDown, ChevronLeft, ChevronRight, Lightbulb, MicIcon, StopCircleIcon } from 'lucide-react';
 import { Goal, SessionLogSection, SubGoal } from '../../types';
 import { useTimer } from '../../hooks/useTimer';
 import { useAudioRecorder } from '../../hooks/useAudioRecorder';
@@ -374,21 +375,33 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
                 onClose={() => setSheetMusicOpen(false)}
                 focusControls={
                   focusLabel && (
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexShrink: '1 !important', minWidth: 0 }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: '1 !important', minWidth: 0 }}>
+                      {focuses.length > 1 && (
+                        <IconButton
+                          variant="outlined"
+                          color="neutral"
+                          aria-label="Previous focus"
+                          disabled={focusIndex === 0}
+                          onClick={() => goToFocus(focusIndex - 1)}
+                          sx={{ minWidth: 40, minHeight: 40, flexShrink: 0 }}
+                        >
+                          <ChevronLeft size={20} />
+                        </IconButton>
+                      )}
                       <Typography level="title-sm" noWrap sx={{ minWidth: 0, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {focusLabel}
                       </Typography>
-                      {focusIndex < focuses.length - 1 && (
-                        <Button
-                          size="sm"
+                      {focuses.length > 1 && (
+                        <IconButton
                           variant="outlined"
                           color="neutral"
-                          endDecorator={<ChevronRight size={16} />}
+                          aria-label="Next focus"
+                          disabled={focusIndex === focuses.length - 1}
                           onClick={() => goToFocus(focusIndex + 1)}
-                          sx={{ minHeight: 40, flexShrink: 0 }}
+                          sx={{ minWidth: 40, minHeight: 40, flexShrink: 0 }}
                         >
-                          Next focus
-                        </Button>
+                          <ChevronRight size={20} />
+                        </IconButton>
                       )}
                     </Box>
                   )
