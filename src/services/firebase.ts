@@ -23,9 +23,10 @@ import {
   getDocs,
   Timestamp,
   addDoc,
+  deleteField,
 } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
-import { UserProfile, Goal, PracticeSessionLog, RepertoirePiece } from '../types';
+import { UserProfile, Goal, PracticeSessionLog, RepertoirePiece, ActiveSession } from '../types';
 
 // Firebase configuration - Replace with your config
 const firebaseConfig = {
@@ -88,6 +89,13 @@ export const getUserProfile = async (uid: string): Promise<UserProfile | null> =
 export const updateUserProfile = async (uid: string, updates: Partial<UserProfile>): Promise<void> => {
   const data = convertDatesToTimestamps(updates);
   await updateDoc(doc(db, 'users', uid), data);
+};
+
+// Save (or clear, with null) the in-progress practice session on the user profile
+export const setActiveSession = async (uid: string, session: ActiveSession | null): Promise<void> => {
+  await updateDoc(doc(db, 'users', uid), {
+    activeSession: session ? convertDatesToTimestamps(session) : deleteField(),
+  });
 };
 
 // Goal Functions

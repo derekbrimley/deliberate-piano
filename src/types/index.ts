@@ -3,9 +3,15 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName?: string;
-  defaultSessionDuration: number; // in minutes
+  defaultSessionDuration: number; // in minutes (the Today page's target)
   createdAt: Date;
   onboardingComplete: boolean;
+  // Today page settings for the fixed warmup / free play blocks
+  warmupMinutes?: number; // default 5
+  freePlayMinutes?: number; // default 5
+  warmupInPlan?: boolean; // default true
+  freePlayInPlan?: boolean; // default true
+  activeSession?: ActiveSession; // in-progress session, saved after every block
 }
 
 // Note entry with timestamp
@@ -91,6 +97,12 @@ export interface Goal {
   sheetMusic?: SheetMusic; // For 'piece' and 'technical' types
   musicTheoryExerciseUrl?: string; // musictheory.net exercise for ear/eye training (preset or custom link)
 
+  // Today page planning
+  inPlan?: boolean; // checked on Today (default true)
+  defaultMinutes?: number; // block length on Today (default 5)
+  order?: number; // position on Today
+  focusSubGoalId?: string; // sub-goal to work on next (piece/technical)
+
   // For goals without sub-goals, track status directly
   status?: 'needs_work' | 'complete';
   notes?: string; // Most recent note (for backwards compatibility)
@@ -143,9 +155,20 @@ export interface PracticeSessionLog {
   createdAt: Date;
 }
 
-// Planned section for a practice session
-export interface PlannedSection {
-  goalId: string;
-  subGoalId?: string; // Present if practicing a specific sub-goal
-  duration: number; // in seconds
+// A block in a practice session, in order
+export type SessionBlock =
+  | { kind: 'warmup'; minutes: number; scale: string; repertoireId?: string }
+  | { kind: 'goal'; minutes: number; goalId: string; subGoalId?: string }
+  | { kind: 'freePlay'; minutes: number };
+
+// In-progress session. Stored on the user profile after every block so a refresh
+// (or closing the app) can resume where you left off. Times are epoch ms.
+export interface ActiveSession {
+  startedAt: number;
+  blocks: SessionBlock[];
+  index: number; // current block
+  sections: SessionLogSection[]; // finished goal blocks
+  scalePracticed?: string;
+  warmupRepertoireId?: string;
+  playedPieces: string[];
 }
