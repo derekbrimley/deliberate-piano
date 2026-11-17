@@ -136,8 +136,20 @@ const statusBox = (color?: string) => {
   };
 };
 
+const display = '"Cormorant", Georgia, serif';
+// Cormorant runs small for its point size, so headings are set larger than Joy's defaults.
+const engraved = (fontSize: string) => ({ fontFamily: display, fontSize, fontWeight: 600, lineHeight: 1.15, letterSpacing: 0 });
+
 const paperTheme = extendTheme({
   fontSize,
+  fontFamily: { display },
+  typography: {
+    h1: engraved('3rem'),
+    h2: { ...engraved('2.6rem'), fontVariantNumeric: 'oldstyle-nums' },
+    h3: engraved('2.1rem'),
+    h4: engraved('1.75rem'),
+    'title-lg': engraved('1.6rem'),
+  },
   fontWeight: { sm: 400, md: 500, lg: 600, xl: 700 },
   radius: { xs: '2px', sm: '4px', md: '6px', lg: '8px', xl: '12px' },
   shadow: { xs: 'none', sm: 'none', md: 'none', lg: 'none', xl: 'none' },
@@ -211,11 +223,36 @@ const paperTheme = extendTheme({
       defaultProps: { size: 'lg' as const },
       styleOverrides: { radio: { borderWidth: 2, borderColor: ink } },
     },
+    // Status by texture: "done" (success) chips are solid ink, "needs work" (warning) chips are hatched
     JoyChip: {
       styleOverrides: {
-        root: ({ ownerState }: { ownerState: { variant?: string } }) => ({
+        root: ({ ownerState }: { ownerState: { variant?: string; color?: string } }) => ({
           ...(ownerState.variant !== 'solid' && { boxShadow: `inset 0 0 0 1.5px ${ink}`, backgroundColor: paper }),
+          ...(ownerState.color === 'success' && { backgroundColor: ink, color: paper }),
+          ...(ownerState.color === 'warning' && {
+            background: `repeating-linear-gradient(135deg, ${ink} 0 1.5px, ${paper} 1.5px 5px)`,
+            boxShadow: `inset 0 0 0 2px ${ink}`,
+          }),
         }),
+        label: ({ ownerState }: { ownerState: { color?: string } }) => ({
+          ...(ownerState.color === 'warning' && { backgroundColor: paper, padding: '0 6px', margin: '3px 0', fontWeight: 600 }),
+        }),
+      },
+    },
+    JoyFormLabel: {
+      styleOverrides: {
+        root: {
+          fontFamily: '"Cormorant SC", "Cormorant", Georgia, serif',
+          fontWeight: 700,
+          fontSize: '1.15rem',
+          letterSpacing: '0.04em',
+        },
+      },
+    },
+    // Page-like margins (the practice runner and PDF viewer don't use Container, so stay full-bleed)
+    JoyContainer: {
+      styleOverrides: {
+        root: { paddingLeft: 28, paddingRight: 28, '@media (min-width: 700px)': { paddingLeft: 56, paddingRight: 56 } },
       },
     },
     // Alerts and toasts all share one ink, so the kind is spelled out with a leading mark

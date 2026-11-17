@@ -1,5 +1,6 @@
 import React from 'react';
 import { Box, Container, Modal, ModalClose, ModalDialog, Typography } from '@mui/joy';
+import { smallCapsSx, StaffRule } from '../Engraving';
 import { BookOpen, ChevronRight } from 'lucide-react';
 import { Goal } from '../../types';
 import { formatDate } from '../../utils/formatting';
@@ -52,12 +53,13 @@ export const GoalRow: React.FC<{ goal: Goal; onOpen: () => void; action?: React.
 const Group: React.FC<{ title: string; hint?: string; goals: Goal[]; onOpen: (id: string) => void }> = ({ title, hint, goals, onOpen }) =>
   goals.length === 0 ? null : (
     <Box sx={{ mb: 4 }}>
-      <Box sx={{ borderBottom: '2px solid #000', pb: 0.5 }}>
-        <Typography level="title-lg">
+      <Box>
+        <Typography level="title-lg" sx={smallCapsSx}>
           {title} <Typography level="body-md" component="span">({goals.length})</Typography>
         </Typography>
         {hint && <Typography level="body-sm">{hint}</Typography>}
       </Box>
+      <StaffRule my={0.5} />
       {goals.map(g => (
         <GoalRow key={g.id} goal={g} onOpen={() => onOpen(g.id)} />
       ))}

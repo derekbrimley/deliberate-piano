@@ -13,6 +13,7 @@ import {
   Stack,
   Typography,
 } from '@mui/joy';
+import { smallCapsSx } from '../Engraving';
 import { CheckIcon, RotateCcw, Trash2 } from 'lucide-react';
 import { Goal, SubGoal } from '../../types';
 import { formatDate } from '../../utils/formatting';
@@ -58,7 +59,7 @@ export const GoalPanel: React.FC<GoalPanelProps> = ({ goal, ...rest }) => !goal 
 const Section: React.FC<{ title: string; action?: React.ReactNode; children: React.ReactNode }> = ({ title, action, children }) => (
   <Box>
     <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, minHeight: 32 }}>
-      <Typography level="title-md" sx={{ flex: 1 }}>{title}</Typography>
+      <Typography level="title-md" sx={{ ...smallCapsSx, flex: 1 }}>{title}</Typography>
       {action}
     </Box>
     {children}
