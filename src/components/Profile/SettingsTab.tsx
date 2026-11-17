@@ -76,7 +76,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ userProfile, onSetting
             )}
 
             <FormControl>
-              <FormLabel>Default Session Duration (minutes)</FormLabel>
+              <FormLabel>Daily practice target (minutes)</FormLabel>
               <Select
                 defaultValue={defaultSessionDuration}
                 onChange={handleDefaultSessionDurationChange}
@@ -87,8 +87,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ userProfile, onSetting
                 <Option value={60}>60</Option>
               </Select>
               <Typography level="body-sm" sx={{ mt: 1, color: 'neutral.600' }}>
-                This is the default duration for new practice sessions. You can still adjust it on
-                the start session page.
+                Today shows your planned minutes next to this target.
               </Typography>
             </FormControl>
           </Box>

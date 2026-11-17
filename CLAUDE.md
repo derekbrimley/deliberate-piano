@@ -34,27 +34,27 @@ AuthContext and ToastContext are the only React Contexts — no Redux/Zustand.
 App uses **state-based navigation with URL synchronization** (not React Router):
 
 - `App.tsx` manages all state transitions and renders the appropriate page
-- URL query params provide bookmarkability: `?page=practice|history|profile&tab=goals|repertoire|settings`
+- URL query params provide bookmarkability: `?page=practice|history|profile`
 - `updateUrl()` pushes to browser history without reload; `getAppStateFromUrl()` restores state on mount
-- React Router DOM v7 is installed but unused
 
 ### Data Flow
 
 1. Firebase Auth change → `AuthContext` fetches `UserProfile` from Firestore
 2. If `onboardingComplete: false` → `OnboardingFlow` (3-step setup)
-3. Main navigation: `MainSessionPage` (plan) → `SessionFlowPage` (execute) → `SessionHistoryPage` / `ProfilePage`
+3. Main navigation: `TodayPage` (plan + goals + repertoire) → `PracticePage` (execute) → `SessionHistoryPage` / `ProfilePage` (settings only)
 4. AI exercise suggestions fetched from Anthropic API when entering each goal section (`src/services/llm.ts`)
 
-### Session Flow Phases
+### Today (`src/pages/TodayPage.tsx`)
 
-`SessionFlowPage` progresses through four phases sequentially:
+The goal list *is* the plan. Rows: Warmup, every active unfinished goal (`isOnToday` in `src/utils/plan.ts`), Free play + repertoire. Each row has a checkbox (`goal.inPlan` / `profile.warmupInPlan` / `profile.freePlayInPlan`, default true) and a sticky length (`goal.defaultMinutes` / `profile.warmupMinutes` / `profile.freePlayMinutes`, default 5); nothing is split automatically. Goal rows reorder by dragging the grip (pointer events, writes `goal.order`). Tapping a goal opens `GoalPanel` (drawer): name, length, target BPM, focus (`goal.focusSubGoalId`, one of its open sub-goals; adding a focus creates a sub-goal), sheet music, musictheory.net exercise, recent notes. "All goals" / "All repertoire" open the old `GoalsTab` / `RepertoireTab` full screen for everything else. Writes are optimistic.
 
-1. **WarmupPhase** (`src/components/Session/WarmupPhase.tsx`): Scales → repertoire review. The warmup duration is split between the two (scales get all of it if there's no repertoire). Recommends next scale via cycle-of-fourths rotation (`src/utils/scales.ts`).
-2. **GoalWorkPhase** (`src/components/Session/GoalWorkPhase.tsx`): Iterates through `PlannedSection[]`. Each section: timer, AI suggestion (piece/technical only), note history accordion, audio recorder, status selection. Deep-listening goals embed a YouTube player instead.
-3. **FreePlayPhase** (`src/components/Session/FreePlayPhase.tsx`): Timer + repertoire checkboxes.
-4. **SessionEnd** (`src/components/Session/SessionEnd.tsx`): Summary + overall notes → saves `PracticeSessionLog` to Firestore.
+Technique goals with no focus fall back to the due review exercise from `getNextTechniqueExercises`.
 
-**Key interface**: `PlannedSection` (`src/types/index.ts`) — `{ goalId, subGoalId?, duration }` — bridges planning to execution.
+### Practice (`src/pages/PracticePage.tsx`)
+
+Start builds `SessionBlock[]` (`warmup` | `goal` | `freePlay`) into an `ActiveSession`, stored on the user profile (`setActiveSession` in `firebase.ts`). `PracticePage` renders one block at a time (`src/components/Practice/`: `WarmupBlock`, `GoalBlock`, `FreePlayBlock`, sharing `BlockHeader`/`BlockFooter`), each keyed by index so it owns a fresh `useTimer`. On Next the block's result is written immediately (`src/services/practice.ts`: goal/sub-goal status + note, repertoire played dates) and the session is saved, so a refresh offers Resume on Today. Finish shows `SessionEnd` and writes the `PracticeSessionLog`. Warmup is one block with a checklist (scale from `getNextScale`, review piece from `getNextWarmupRepertoire`).
+
+AI suggestions show only for piece/technique goals with no open sub-goals.
 
 ### LLM Service (`src/services/llm.ts`)
 
@@ -64,7 +64,7 @@ Uses `@anthropic-ai/sdk` with `dangerouslyAllowBrowser: true` (client-side, requ
 
 Goals (piece/technical) and repertoire pieces can have a PDF (`sheetMusic` field), handled through a `SheetMusicOwner` (`{ kind: 'goal' | 'repertoire', id, name, sheetMusic }`). Files live in Firebase Storage at `users/{uid}/sheet-music/{goalId}/` or `users/{uid}/sheet-music/repertoire/{pieceId}/` (`score.pdf` + `annotations.json`; strokes normalized 0..1 per page). Setup in SETUP.md (`storage.rules`, `storage.cors.json`).
 
-`SheetMusicViewer` (pdfjs-dist, lazy-loaded, portaled to `<body>`) opens automatically for goal sections and warmup repertoire review that have a PDF; `ViewerSessionControls` puts the section timer in its toolbar. It renders only the visible region at the current zoom (`View { z, ox, oy }`, z=1 = fit width) and CSS-transforms the last bitmap during gestures. Hand mode: swipe turns pages, pinch zooms, drag pans, tap middle toggles the toolbar, tap outer edges turns pages. Draw modes: once a stylus is seen, one finger never draws (palm rejection), two fingers pinch/pan; pen width scales down with zoom. Arrow/PageUp/PageDown keys (pedals) turn pages.
+`SheetMusicViewer` (pdfjs-dist, lazy-loaded, portaled to `<body>`) opens automatically for goal blocks that have a PDF (warmup and free play have per-piece Open buttons); `ViewerSessionControls` puts the section timer in its toolbar. It renders only the visible region at the current zoom (`View { z, ox, oy }`, z=1 = fit width) and CSS-transforms the last bitmap during gestures. Hand mode: swipe turns pages, pinch zooms, drag pans, tap middle toggles the toolbar, tap outer edges turns pages. Draw modes: once a stylus is seen, one finger never draws (palm rejection), two fingers pinch/pan; pen width scales down with zoom. Arrow/PageUp/PageDown keys (pedals) turn pages.
 
 ### PWA
 
@@ -72,7 +72,7 @@ Goals (piece/technical) and repertoire pieces can have a PDF (`sheetMusic` field
 
 ### Metronome
 
-`useMetronome` (Web Audio lookahead scheduler) + floating `Metronome` component rendered by `SessionFlowPage` in every phase; picks up the current goal's `targetBpm` via `GoalWorkPhase`'s `onActiveGoalChange`.
+`useMetronome` (Web Audio lookahead scheduler) + floating `Metronome` component rendered by `PracticePage` on every block; suggests the current goal's `targetBpm`.
 
 ### musictheory.net exercises (`src/utils/musicTheory.ts`)
 
@@ -93,10 +93,10 @@ Derek practices on a Daylight DC-1 (Android, monochrome reflective screen, stylu
 All operations in `src/services/firebase.ts`.
 
 #### users
-UserProfile keyed by Firebase Auth UID: `uid`, `email`, `displayName?`, `defaultSessionDuration` (minutes), `createdAt`, `onboardingComplete`
+UserProfile keyed by Firebase Auth UID: `uid`, `email`, `displayName?`, `defaultSessionDuration` (minutes; Today's target), `createdAt`, `onboardingComplete`, Today settings (`warmupMinutes`, `freePlayMinutes`, `warmupInPlan`, `freePlayInPlan`), `activeSession?` (in-progress session, epoch-ms times)
 
 #### goals
-Flexible structure by type (`'piece' | 'technical' | 'ear-training' | 'eye-training'`). Common fields: `uid`, `name`, `type`, `active`, `targetBpm?`, `createdAt`, `updatedAt`.
+Flexible structure by type (`'piece' | 'technical' | 'ear-training' | 'eye-training'`). Common fields: `uid`, `name`, `type`, `active`, `targetBpm?`, `createdAt`, `updatedAt`, plus Today fields `inPlan?`, `defaultMinutes?`, `order?`, `focusSubGoalId?`.
 
 - **piece**: `subGoals[]` — each with `id`, `name`, `notes`, `noteHistory`, `status`, `completionHistory`
 - **technical**: `technicalDescription`, plus direct `notes`, `noteHistory`, `status`, `completionHistory`
@@ -136,12 +136,12 @@ VITE_ANTHROPIC_API_KEY=
 
 ## Key Architectural Decisions
 
-1. **State-based navigation** (not React Router) to prevent losing active session state on navigation
-2. **No session persistence** — a page refresh mid-session loses the session (an unused localStorage stub was removed)
+1. **State-based navigation** (no router)
+2. **Session persistence on the profile** — `activeSession` is saved after every block; Today offers Resume
 3. **In-memory audio only** — recordings are blob URLs, never saved to Firestore
 4. **Timestamped note history** (`NoteEntry[]`) rather than a single mutable notes field
 5. **Flexible goal structure** — `subGoals[]` for piece goals; flat fields for other types
-6. **`PlannedSection` abstraction** decouples session planning from execution
+6. **`SessionBlock` list** is the whole session; blocks are independent components
 7. **Scale rotation via cycle of fourths** for systematic warmup progression
 8. **Client-side LLM calls** with `dangerouslyAllowBrowser: true` — only for piece/technical goals
 9. **Deep listening as a distinct paradigm** — YouTube embeds, no status selection, no audio recorder

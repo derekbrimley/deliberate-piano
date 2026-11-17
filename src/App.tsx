@@ -10,12 +10,12 @@ import {
 } from '@mui/joy';
 import { useAuth } from './context/AuthContext';
 import { AuthPage } from './pages/AuthPage';
-import { MainSessionPage } from './pages/MainSessionPage';
-import { SessionFlowPage } from './pages/SessionFlowPage';
+import { TodayPage } from './pages/TodayPage';
+import { PracticePage } from './pages/PracticePage';
 import { SessionHistoryPage } from './pages/SessionHistoryPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { OnboardingFlow } from './components/Onboarding/OnboardingFlow';
-import { Goal, PlannedSection, RepertoirePiece, UserProfile } from './types';
+import { ActiveSession, Goal, RepertoirePiece, UserProfile } from './types';
 import {
   createGoal,
   addRepertoirePiece,
@@ -61,13 +61,7 @@ const updateUrl = (state: AppState) => {
 export const App: React.FC = () => {
   const { user, userProfile, loading: authLoading } = useAuth();
   const [appState, setAppState] = useState<AppState>('loading');
-  const [sessionState, setSessionState] = useState<{
-    plannedDuration: number;
-    selectedGoals: Goal[];
-    plannedSections: PlannedSection[];
-    warmupDuration: number;
-    freePlayDuration: number;
-  } | null>(null);
+  const [sessionState, setSessionState] = useState<ActiveSession | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Determine app state based on auth and onboarding status
@@ -138,20 +132,8 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleStartSession = (
-    duration: number,
-    selectedGoals: Goal[],
-    plannedSections: PlannedSection[],
-    warmupTime: number,
-    freePlayTime: number
-  ) => {
-    setSessionState({
-      plannedDuration: duration,
-      selectedGoals,
-      plannedSections,
-      warmupDuration: warmupTime,
-      freePlayDuration: freePlayTime,
-    });
+  const handleStartSession = (session: ActiveSession) => {
+    setSessionState(session);
     setAppState('session-flow');
   };
 
@@ -190,7 +172,7 @@ export const App: React.FC = () => {
   }
 
   // Navigation bar for authenticated users
-  const showNav = user && appState !== 'auth' && appState !== 'onboarding';
+  const showNav = user && appState !== 'auth' && appState !== 'onboarding' && appState !== 'session-flow';
 
   return (
     <Box sx={{ minHeight: '100vh', height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -225,7 +207,7 @@ export const App: React.FC = () => {
                   onClick={handleNavigateToMain}
                   sx={{ color: 'white' }}
                 >
-                  Practice
+                  Today
                 </Button>
                 <Button
                   variant={appState === 'session-history' ? 'soft' : 'plain'}
@@ -241,7 +223,7 @@ export const App: React.FC = () => {
                   onClick={handleNavigateToProfile}
                   sx={{ color: 'white' }}
                 >
-                  Profile
+                  Settings
                 </Button>
               </Stack>
             </Stack>
@@ -270,18 +252,11 @@ export const App: React.FC = () => {
         )}
 
         {appState === 'main' && (
-          <MainSessionPage onStartSession={handleStartSession} />
+          <TodayPage onStart={handleStartSession} />
         )}
 
         {appState === 'session-flow' && sessionState && (
-          <SessionFlowPage
-            plannedDuration={sessionState.plannedDuration}
-            selectedGoals={sessionState.selectedGoals}
-            plannedSections={sessionState.plannedSections}
-            warmupDuration={sessionState.warmupDuration}
-            freePlayDuration={sessionState.freePlayDuration}
-            onSessionComplete={handleSessionComplete}
-          />
+          <PracticePage session={sessionState} onLeave={handleSessionComplete} />
         )}
 
         {appState === 'session-history' && (
