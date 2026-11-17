@@ -24,6 +24,7 @@ import {
   Timestamp,
   addDoc,
 } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import { UserProfile, Goal, PracticeSessionLog, RepertoirePiece } from '../types';
 
 // Firebase configuration - Replace with your config
@@ -41,6 +42,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
+export const storage = getStorage(app);
 
 // Auth Functions
 export const registerUser = async (email: string, password: string): Promise<User> => {
@@ -108,6 +110,10 @@ function convertGoalTimestamps(data: any): Goal {
   // Convert top-level dates
   if (goal.createdAt) goal.createdAt = (goal.createdAt as Timestamp).toDate();
   if (goal.updatedAt) goal.updatedAt = (goal.updatedAt as Timestamp).toDate();
+
+  if (goal.sheetMusic?.uploadedAt instanceof Timestamp) {
+    goal.sheetMusic = { ...goal.sheetMusic, uploadedAt: goal.sheetMusic.uploadedAt.toDate() };
+  }
 
   // Convert completion history
   if (goal.completionHistory) {

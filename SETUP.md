@@ -117,6 +117,20 @@ service cloud.firestore {
 - Check browser console for "getUserMedia" errors
 - Grant microphone permission when prompted
 
+## Sheet Music Storage (Firebase Storage)
+
+Sheet music PDFs and their pen annotations are stored in Firebase Storage under `users/{uid}/sheet-music/{goalId}/`.
+
+1. In Firebase Console, go to **Storage** and click **Get started** (requires the pay-as-you-go Blaze plan; personal use stays within the free allowance).
+2. Open the **Rules** tab, paste the contents of `storage.rules`, and publish.
+3. Allow the browser to download files (CORS). In Google Cloud Shell (or anywhere with `gcloud`), with `storage.cors.json` from this repo:
+
+   ```bash
+   gcloud storage buckets update gs://YOUR_BUCKET --cors-file=storage.cors.json
+   ```
+
+   `YOUR_BUCKET` is the `VITE_FIREBASE_STORAGE_BUCKET` value. Without this step uploads work but PDFs fail to open.
+
 ## Development Commands
 
 ```bash
