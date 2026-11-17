@@ -2,87 +2,75 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { playDingSound } from '../utils/audio';
 
 interface UseTimerOptions {
-  initialDuration: number; // in seconds
+  duration: number; // in seconds
+  autoStart?: boolean;
   onComplete?: () => void;
 }
 
-export const useTimer = ({ initialDuration, onComplete }: UseTimerOptions) => {
-  const [timeRemaining, setTimeRemaining] = useState(initialDuration);
-  const [isRunning, setIsRunning] = useState(false);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<number | null>(null);
-  const pausedTimeRef = useRef<number>(initialDuration);
+// The timer is described by one piece of state so start/pause/restart can never
+// interleave into an inconsistent combination (the old version kept the running
+// flag, start time and paused remainder in separate state/refs).
+interface TimerState {
+  remaining: number; // seconds left as of `startedAt` (or now, when paused)
+  startedAt: number | null; // Date.now() when last started; null when paused
+}
+
+const remainingAt = (state: TimerState, now: number) =>
+  state.startedAt === null
+    ? state.remaining
+    : Math.max(0, state.remaining - Math.max(0, now - state.startedAt) / 1000);
+
+/**
+ * Countdown timer. Call `restart(duration)` to load a new duration and start it
+ * in one step (e.g. when moving to the next section).
+ */
+export const useTimer = ({ duration, autoStart = false, onComplete }: UseTimerOptions) => {
+  const [state, setState] = useState<TimerState>(() => ({
+    remaining: duration,
+    startedAt: autoStart && duration > 0 ? Date.now() : null,
+  }));
+  const [now, setNow] = useState(() => Date.now());
+  const onCompleteRef = useRef(onComplete);
+  onCompleteRef.current = onComplete;
+
+  const isRunning = state.startedAt !== null;
 
   useEffect(() => {
-    if (!isRunning) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      return;
-    }
+    if (state.startedAt === null) return;
 
-    const startTime = startTimeRef.current || Date.now();
-    startTimeRef.current = startTime;
-
-    intervalRef.current = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - startTime) / 1000);
-      const remaining = Math.max(0, pausedTimeRef.current - elapsed);
-
-      setTimeRemaining(remaining);
-
-      if (remaining <= 0) {
-        setIsRunning(false);
-        if (intervalRef.current) clearInterval(intervalRef.current);
+    const tick = () => {
+      const t = Date.now();
+      setNow(t);
+      if (remainingAt(state, t) <= 0) {
+        setState({ remaining: 0, startedAt: null });
         playDingSound();
-        onComplete?.();
+        onCompleteRef.current?.();
       }
-    }, 100);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isRunning, onComplete]);
+
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [state]);
 
   const start = useCallback(() => {
-    startTimeRef.current = Date.now();
-    setIsRunning(true);
+    setState(s => (s.startedAt !== null || s.remaining <= 0 ? s : { ...s, startedAt: Date.now() }));
   }, []);
 
   const pause = useCallback(() => {
-    if (isRunning) {
-      pausedTimeRef.current = timeRemaining;
-      startTimeRef.current = null;
-      setIsRunning(false);
-    }
-  }, [isRunning, timeRemaining]);
+    setState(s => (s.startedAt === null ? s : { remaining: remainingAt(s, Date.now()), startedAt: null }));
+  }, []);
 
-  const resume = useCallback(() => {
-    if (!isRunning) {
-      start();
-    }
-  }, [isRunning, start]);
-
-  const reset = useCallback((duration?: number) => {
-    setIsRunning(false);
-    startTimeRef.current = null;
-    pausedTimeRef.current = duration ?? initialDuration;
-    setTimeRemaining(duration ?? initialDuration);
-  }, [initialDuration]);
-
-  const setDuration = useCallback((newDuration: number) => {
-    pausedTimeRef.current = newDuration;
-    if (!isRunning) {
-      setTimeRemaining(newDuration);
-    }
-  }, [isRunning]);
+  const restart = useCallback((newDuration: number) => {
+    const t = Date.now();
+    setNow(t);
+    setState({ remaining: newDuration, startedAt: newDuration > 0 ? t : null });
+  }, []);
 
   return {
-    timeRemaining,
+    timeRemaining: Math.ceil(remainingAt(state, now)),
     isRunning,
     start,
     pause,
-    resume,
-    reset,
-    setDuration,
+    restart,
   };
 };

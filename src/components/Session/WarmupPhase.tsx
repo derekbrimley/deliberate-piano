@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Button,
@@ -30,19 +30,24 @@ export const WarmupPhase: React.FC<WarmupPhaseProps> = ({
   onComplete
 }) => {
   const [subPhase, setSubPhase] = useState<WarmupSubPhase>('scales');
-  const { timeRemaining, isRunning, start, pause, reset } = useTimer({
-    initialDuration: duration,
+
+  // The configured warmup time covers the whole warmup: split it between scales
+  // and repertoire review (scales get all of it when there's no piece to review).
+  const scalesDuration = warmupRepertoirePiece ? Math.ceil(duration / 2) : duration;
+  const repertoireDuration = duration - scalesDuration;
+
+  const { timeRemaining, isRunning, start, pause, restart } = useTimer({
+    duration: scalesDuration,
+    autoStart: true,
   });
 
-  // Auto-start timer on mount
-  useEffect(() => {
-    setTimeout(() => start(), 0);
-  }, [start]);
-
   const handleScalesComplete = () => {
-    reset();
+    if (!warmupRepertoirePiece) {
+      onComplete({ scalePracticed: recommendedScale });
+      return;
+    }
+    restart(repertoireDuration);
     setSubPhase('repertoire');
-    setTimeout(() => start(), 0);
   };
 
   const handleRepertoireComplete = (repertoireId?: string) => {
@@ -92,7 +97,7 @@ export const WarmupPhase: React.FC<WarmupPhaseProps> = ({
                 startDecorator={<CheckIcon size={20} />}
                 size="lg"
               >
-                Next: Repertoire
+                {warmupRepertoirePiece ? 'Next: Repertoire' : 'Finish Warmup'}
               </Button>
             </Stack>
 
@@ -136,26 +141,7 @@ export const WarmupPhase: React.FC<WarmupPhaseProps> = ({
         Warmup: Repertoire Review
       </Typography>
 
-      {!warmupRepertoirePiece ? (
-        <>
-          <Alert color="warning" sx={{ mb: 4 }}>
-            No repertoire pieces available. Add pieces in your profile to use repertoire warmup.
-          </Alert>
-
-          <Stack direction="row" spacing={2}>
-            <Button
-              onClick={() => handleRepertoireComplete(undefined)}
-              variant="soft"
-              color="neutral"
-              startDecorator={<SkipForwardIcon size={20} />}
-              size="lg"
-              fullWidth
-            >
-              Skip & Finish Warmup
-            </Button>
-          </Stack>
-        </>
-      ) : (
+      {warmupRepertoirePiece && (
         <Card sx={{ mb: 4 }}>
           <CardContent>
             <Typography level="h3" sx={{ mb: 2, textAlign: 'center' }}>

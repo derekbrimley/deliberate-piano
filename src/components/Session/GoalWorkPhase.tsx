@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
 import {
   Box,
   Button,
@@ -56,7 +56,7 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
   const [sectionNotes, setSectionNotes] = useState('');
   const [sectionStatus, setSectionStatus] = useState<'needs_work' | 'complete'>('needs_work');
   const [completedSections, setCompletedSections] = useState<SessionLogSection[]>([]);
-  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [startTime, setStartTime] = useState<Date>(() => new Date());
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [exerciseSuggestion, setExerciseSuggestion] = useState<string>('');
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
@@ -83,8 +83,9 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
 
   const timerDuration = currentSection?.duration || 0;
 
-  const { timeRemaining, isRunning, start, pause, reset } = useTimer({
-    initialDuration: timerDuration,
+  const { timeRemaining, isRunning, start, pause, restart } = useTimer({
+    duration: timerDuration,
+    autoStart: true,
   });
 
   // Sheet music: opens automatically when a section with a PDF starts
@@ -107,26 +108,26 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
     discardRecording,
   } = useAudioRecorder();
 
-  // Reset timer when section changes and auto-start
+  // When moving to a different section, load and start that section's own duration.
+  // Keyed on the index only, so goal edits mid-section don't restart the clock.
+  // (The first section is already loaded via the hook's initial duration.)
+  const timerSectionIndexRef = useRef(currentSectionIndex);
   useEffect(() => {
-    if (currentSection) {
-      const newDuration = currentSection.duration;
-      reset(newDuration);
+    if (timerSectionIndexRef.current === currentSectionIndex) return;
+    timerSectionIndexRef.current = currentSectionIndex;
+    restart(plannedSections[currentSectionIndex]?.duration || 0);
+    setStartTime(new Date());
+  }, [currentSectionIndex]);
 
-      // Auto-select first unlistened song for deep-listening
-      if (currentGoal?.type === 'ear-training' &&
-          currentGoal.earTrainingType === 'deep-listening') {
-        const firstUnlistened = currentGoal.deepListeningSongs?.find(s => !s.listenedTo);
-        setSelectedSongId(firstUnlistened?.id || null);
-      } else {
-        setSelectedSongId(null);
-      }
-
-      // Auto-start timer for new section
-      setStartTime(new Date());
-      setTimeout(() => start(), 0);
+  // Auto-select first unlistened song when entering a deep-listening section
+  useEffect(() => {
+    if (currentGoal?.type === 'ear-training' && currentGoal.earTrainingType === 'deep-listening') {
+      const firstUnlistened = currentGoal.deepListeningSongs?.find(s => !s.listenedTo);
+      setSelectedSongId(firstUnlistened?.id || null);
+    } else {
+      setSelectedSongId(null);
     }
-  }, [currentSectionIndex, currentSection, reset, start, currentGoal]);
+  }, [currentSectionIndex]);
 
   // Fetch exercise suggestion when section changes
   useEffect(() => {
@@ -171,9 +172,7 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
     if (!currentSection || !currentGoal) return;
 
     const now = new Date();
-    const actualDuration = startTime
-      ? Math.floor((now.getTime() - startTime.getTime()) / 1000)
-      : timerDuration - timeRemaining;
+    const actualDuration = Math.floor((now.getTime() - startTime.getTime()) / 1000);
 
     let notes = sectionNotes;
 
@@ -232,7 +231,6 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
       setCurrentSectionIndex(currentSectionIndex + 1);
       setSectionNotes('');
       setSectionStatus('needs_work');
-      setStartTime(null);
       setNotesExpanded(false); // Collapse notes for next section
       discardRecording();
     } else {
@@ -247,7 +245,6 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
       setCurrentSectionIndex(currentSectionIndex + 1);
       setSectionNotes('');
       setSectionStatus('needs_work');
-      setStartTime(null);
       setNotesExpanded(false);
       discardRecording();
     } else {
@@ -262,7 +259,6 @@ export const GoalWorkPhase: React.FC<GoalWorkPhaseProps> = ({
       setCurrentSectionIndex(currentSectionIndex - 1);
       setSectionNotes('');
       setSectionStatus('needs_work');
-      setStartTime(null);
       setNotesExpanded(false);
       discardRecording();
 
