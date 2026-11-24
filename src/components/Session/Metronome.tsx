@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Button, Chip, IconButton, Option, Select, Sheet, Slider, Stack, Typography } from '@mui/joy';
+import { Box, Button, Chip, IconButton, Sheet, Slider, Stack, Typography } from '@mui/joy';
 import { Minus, Pause, Play, Plus, Timer, X } from 'lucide-react';
 import { MAX_BPM, MIN_BPM, useMetronome } from '../../hooks/useMetronome';
 
@@ -21,7 +21,7 @@ interface MetronomeProps {
 
 /**
  * Floating metronome available during the whole session. Collapsed it is a
- * round button (which pulses with the beat while playing); expanded it shows
+ * small corner button (which pulses with the beat while playing); expanded it shows
  * the full controls.
  */
 export const Metronome: React.FC<MetronomeProps> = ({ suggestedBpm }) => {
@@ -49,22 +49,32 @@ export const Metronome: React.FC<MetronomeProps> = ({ suggestedBpm }) => {
       <Button
         onClick={() => setOpen(true)}
         color={m.isPlaying ? 'primary' : 'neutral'}
-        variant={m.isPlaying ? 'solid' : 'soft'}
-        startDecorator={<Timer size={20} />}
+        variant={m.isPlaying ? 'solid' : 'outlined'}
         sx={{
+          // Sits in the right end of the practice footer (which pads 88px for it),
+          // level with Next, so it never covers Skip/Next.
           position: 'fixed',
           right: 16,
-          bottom: 16,
+          bottom: 12,
           zIndex: 1310,
-          borderRadius: 'xl',
+          width: 56,
+          minWidth: 56,
+          height: 48,
           minHeight: 48,
-          boxShadow: 'md',
+          px: 0,
+          bgcolor: m.isPlaying ? undefined : 'background.surface',
           transform: m.isPlaying && m.currentBeat >= 0 ? (onDownbeat ? 'scale(1.08)' : 'scale(1.03)') : 'none',
           transition: 'transform 60ms ease-out',
         }}
-        aria-label="Open metronome"
+        aria-label={m.isPlaying ? `Metronome, ${m.bpm} BPM` : 'Open metronome'}
       >
-        {m.isPlaying ? `${m.bpm} BPM` : 'Metronome'}
+        {m.isPlaying ? (
+          <Typography level="title-md" sx={{ color: 'inherit', fontVariantNumeric: 'tabular-nums' }}>
+            {m.bpm}
+          </Typography>
+        ) : (
+          <Timer size={22} />
+        )}
       </Button>
     );
   }
@@ -75,8 +85,11 @@ export const Metronome: React.FC<MetronomeProps> = ({ suggestedBpm }) => {
       sx={{
         position: 'fixed',
         right: 16,
-        bottom: 16,
+        // above the practice footer, so Back/Skip/Next stay reachable while it's open
+        bottom: 84,
         zIndex: 1310,
+        maxHeight: 'calc(100dvh - 100px)',
+        overflowY: 'auto',
         width: 'min(360px, calc(100vw - 32px))',
         borderRadius: 'lg',
         boxShadow: 'lg',
@@ -139,26 +152,13 @@ export const Metronome: React.FC<MetronomeProps> = ({ suggestedBpm }) => {
           aria-label="Tempo"
         />
 
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-          <Select
-            size="sm"
-            value={m.beatsPerBar}
-            onChange={(_, v) => v && m.setBeatsPerBar(v)}
-            sx={{ minWidth: 110 }}
-            aria-label="Beats per bar"
-          >
-            {[1, 2, 3, 4, 5, 6, 7, 9, 12].map(n => (
-              <Option key={n} value={n}>
-                {n === 1 ? 'No accent' : `${n} beats`}
-              </Option>
-            ))}
-          </Select>
-          {suggestedBpm && suggestedBpm !== m.bpm && (
+        {suggestedBpm && suggestedBpm !== m.bpm && (
+          <Box>
             <Chip variant="soft" color="primary" onClick={() => m.setBpm(suggestedBpm)}>
               Target {suggestedBpm}
             </Chip>
-          )}
-        </Stack>
+          </Box>
+        )}
 
         <Stack direction="row" spacing={1}>
           <Button variant="outlined" color="neutral" onClick={m.tap} sx={{ flex: 1, minHeight: 48 }}>

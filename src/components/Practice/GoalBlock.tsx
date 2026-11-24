@@ -38,6 +38,7 @@ interface GoalBlockProps {
   total: number;
   isLast: boolean;
   onExit: () => void;
+  onBack?: () => void;
   onDone: (sections: SessionLogSection[]) => void; // one per focus worked on ([] = skipped)
 }
 
@@ -48,7 +49,7 @@ interface Entry {
 }
 
 export const GoalBlock: React.FC<GoalBlockProps> = ({
-  uid, goal, focuses, minutes, position, total, isLast, onExit, onDone,
+  uid, goal, focuses, minutes, position, total, isLast, onExit, onBack, onDone,
 }) => {
   const { timeRemaining, isRunning, start, pause } = useTimer({ duration: minutes * 60, autoStart: true });
   const toggle = () => (isRunning ? pause() : start());
@@ -496,7 +497,7 @@ export const GoalBlock: React.FC<GoalBlockProps> = ({
         )}
       </Box>
 
-      <BlockFooter isLast={isLast} onNext={handleNext} onSkip={() => onDone([])} busy={busy} />
+      <BlockFooter isLast={isLast} onNext={handleNext} onSkip={() => onDone([])} onBack={onBack} busy={busy} />
     </>
   );
 };

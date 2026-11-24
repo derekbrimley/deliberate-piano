@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Button, IconButton, Stack, Typography } from '@mui/joy';
 import { engravedNumeralsSx, MeasureProgress, smallCapsSx } from '../Engraving';
-import { PauseIcon, PlayIcon, ChevronRight, XIcon } from 'lucide-react';
+import { PauseIcon, PlayIcon, ChevronLeft, ChevronRight, XIcon } from 'lucide-react';
 import { formatTimeMinutesSecondsCompact } from '../../utils/formatting';
 
 export interface BlockTimer {
@@ -72,12 +72,14 @@ interface BlockFooterProps {
   isLast: boolean;
   onNext: () => void;
   onSkip?: () => void;
+  /** Return to the previous block; omitted on the first block. */
+  onBack?: () => void;
   busy?: boolean;
   children?: React.ReactNode; // e.g. status picker
 }
 
-/** Bottom bar of every practice block: optional controls, Skip, Next/Finish. */
-export const BlockFooter: React.FC<BlockFooterProps> = ({ isLast, onNext, onSkip, busy, children }) => (
+/** Bottom bar of every practice block: Back, optional controls, Skip, Next/Finish. */
+export const BlockFooter: React.FC<BlockFooterProps> = ({ isLast, onNext, onSkip, onBack, busy, children }) => (
   <Box
     sx={{
       px: 2,
@@ -86,11 +88,23 @@ export const BlockFooter: React.FC<BlockFooterProps> = ({ isLast, onNext, onSkip
       borderColor: 'neutral.outlinedBorder',
       bgcolor: 'background.surface',
       flexShrink: 0,
-      // leave room for the floating metronome button
-      pr: '150px',
+      // leave room for the metronome button pinned to the bottom-right corner (see Metronome)
+      pr: '88px',
     }}
   >
     <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1.5 }}>
+      {onBack && (
+        <Button
+          variant="plain"
+          color="neutral"
+          onClick={onBack}
+          disabled={busy}
+          startDecorator={<ChevronLeft size={20} />}
+          sx={{ minHeight: 48 }}
+        >
+          Back
+        </Button>
+      )}
       <Box sx={{ flex: 1, minWidth: 0 }}>{children}</Box>
       {onSkip && (
         <Button variant="plain" color="neutral" onClick={onSkip} disabled={busy} sx={{ minHeight: 48 }}>

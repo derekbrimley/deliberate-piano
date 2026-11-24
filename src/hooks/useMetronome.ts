@@ -8,13 +8,15 @@ const SCHEDULE_AHEAD_S = 0.1; // how far ahead clicks are queued on the audio cl
 
 const clampBpm = (bpm: number) => Math.min(MAX_BPM, Math.max(MIN_BPM, Math.round(bpm)));
 
+/** Fixed 4/4: accent on beat 1. */
+const BEATS_PER_BAR = 4;
+
 /**
  * Metronome driven by the Web Audio clock (lookahead scheduling), so clicks stay
  * steady even when the main thread is busy re-rendering.
  */
 export const useMetronome = (initialBpm = 80) => {
   const [bpm, setBpmState] = useState(clampBpm(initialBpm));
-  const [beatsPerBar, setBeatsPerBar] = useState(4);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentBeat, setCurrentBeat] = useState(-1); // beat index shown in the UI
 
@@ -24,11 +26,9 @@ export const useMetronome = (initialBpm = 80) => {
   const beatIndexRef = useRef(0);
   const visualTimeoutsRef = useRef<number[]>([]);
   const bpmRef = useRef(bpm);
-  const beatsPerBarRef = useRef(beatsPerBar);
   const tapTimesRef = useRef<number[]>([]);
 
   bpmRef.current = bpm;
-  beatsPerBarRef.current = beatsPerBar;
 
   const playClick = (ctx: AudioContext, time: number, accent: boolean) => {
     const osc = ctx.createOscillator();
@@ -48,9 +48,9 @@ export const useMetronome = (initialBpm = 80) => {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
     while (nextNoteTimeRef.current < ctx.currentTime + SCHEDULE_AHEAD_S) {
-      const beat = beatIndexRef.current % beatsPerBarRef.current;
+      const beat = beatIndexRef.current % BEATS_PER_BAR;
       const time = nextNoteTimeRef.current;
-      playClick(ctx, time, beat === 0 && beatsPerBarRef.current > 1);
+      playClick(ctx, time, beat === 0 && BEATS_PER_BAR > 1);
 
       const delayMs = Math.max(0, (time - ctx.currentTime) * 1000);
       const id = window.setTimeout(() => setCurrentBeat(beat), delayMs);
@@ -58,7 +58,7 @@ export const useMetronome = (initialBpm = 80) => {
       if (visualTimeoutsRef.current.length > 32) visualTimeoutsRef.current.shift();
 
       nextNoteTimeRef.current += 60 / bpmRef.current;
-      beatIndexRef.current = (beat + 1) % beatsPerBarRef.current;
+      beatIndexRef.current = (beat + 1) % BEATS_PER_BAR;
     }
   }, []);
 
@@ -123,8 +123,7 @@ export const useMetronome = (initialBpm = 80) => {
   return {
     bpm,
     setBpm,
-    beatsPerBar,
-    setBeatsPerBar,
+    beatsPerBar: BEATS_PER_BAR,
     isPlaying,
     currentBeat,
     start,
