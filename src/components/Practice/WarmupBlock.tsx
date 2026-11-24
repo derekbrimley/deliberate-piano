@@ -21,12 +21,13 @@ interface WarmupBlockProps {
   total: number;
   isLast: boolean;
   onExit: () => void;
+  onBack?: () => void;
   onDone: (result: { scale?: ScaleKey; repertoireId?: string }) => void;
 }
 
 /** One warmup block, one timer: scales, then a quick review of a repertoire piece. */
 export const WarmupBlock: React.FC<WarmupBlockProps> = ({
-  uid, minutes, scale, piece, position, total, isLast, onExit, onDone,
+  uid, minutes, scale, piece, position, total, isLast, onExit, onBack, onDone,
 }) => {
   const { timeRemaining, isRunning, start, pause } = useTimer({ duration: minutes * 60, autoStart: true });
   const toggle = () => (isRunning ? pause() : start());
@@ -118,6 +119,7 @@ export const WarmupBlock: React.FC<WarmupBlockProps> = ({
         // The checkboxes are a personal checklist; Next counts the warmup (and review) as done
         onNext={() => onDone({ scale, repertoireId: piece?.id })}
         onSkip={() => onDone({})}
+        onBack={onBack}
       />
     </>
   );

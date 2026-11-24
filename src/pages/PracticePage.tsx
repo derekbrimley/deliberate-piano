@@ -11,6 +11,7 @@ import { FreePlayBlock } from '../components/Practice/FreePlayBlock';
 import { SessionEnd } from '../components/Session/SessionEnd';
 import { Metronome } from '../components/Session/Metronome';
 import { ScaleKey } from '../utils/scales';
+import { ChevronLeft } from 'lucide-react';
 
 interface PracticePageProps {
   session: ActiveSession;
@@ -53,6 +54,7 @@ export const PracticePage: React.FC<PracticePageProps> = ({ session: initial, on
     total,
     isLast: session.index === total - 1,
     onExit: () => setShowExit(true),
+    onBack: session.index > 0 ? () => goBack() : undefined,
   };
 
   /** Move to the next block and save progress (plus any side effect for this block). */
@@ -68,6 +70,23 @@ export const PracticePage: React.FC<PracticePageProps> = ({ session: initial, on
         showError('Could not save progress: ' + (e as Error).message);
       }
     })();
+  };
+
+  /**
+   * Step back to the previous block (e.g. after an accidental Next). That block's
+   * goal sections are dropped from the session log so redoing it doesn't log it twice;
+   * notes already written to the goal stay.
+   */
+  const goBack = () => {
+    if (session.index === 0) return;
+    const prev = session.blocks[session.index - 1];
+    const sections = prev.kind === 'goal' ? session.sections.filter(s => s.goalId !== prev.goalId) : session.sections;
+    const next = { ...session, sections, index: session.index - 1 };
+    setSession(next);
+    setActiveSession(user.uid, next).catch(e => {
+      console.error(e);
+      showError('Could not save progress: ' + (e as Error).message);
+    });
   };
 
   const handleGoalDone = (sections: SessionLogSection[]) => {
@@ -121,6 +140,17 @@ export const PracticePage: React.FC<PracticePageProps> = ({ session: initial, on
     const planned = session.blocks.reduce((sum, b) => sum + b.minutes * 60, 0);
     body = (
       <Box sx={{ flex: 1, overflow: 'auto', px: 2 }}>
+        {total > 0 && (
+          <Button
+            variant="plain"
+            color="neutral"
+            onClick={goBack}
+            startDecorator={<ChevronLeft size={20} />}
+            sx={{ minHeight: 48, mt: 1 }}
+          >
+            Back
+          </Button>
+        )}
         <SessionEnd
           plannedDuration={planned}
           actualDuration={Math.round((Date.now() - session.startedAt) / 1000)}

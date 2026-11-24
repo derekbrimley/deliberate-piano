@@ -16,12 +16,13 @@ interface FreePlayBlockProps {
   total: number;
   isLast: boolean;
   onExit: () => void;
+  onBack?: () => void;
   onDone: () => void;
 }
 
 /** Free play is just for fun: your repertoire list, nothing to log. */
 export const FreePlayBlock: React.FC<FreePlayBlockProps> = ({
-  uid, minutes, pieces, position, total, isLast, onExit, onDone,
+  uid, minutes, pieces, position, total, isLast, onExit, onBack, onDone,
 }) => {
   const { timeRemaining, isRunning, start, pause } = useTimer({ duration: minutes * 60, autoStart: true });
   const toggle = () => (isRunning ? pause() : start());
@@ -83,7 +84,7 @@ export const FreePlayBlock: React.FC<FreePlayBlockProps> = ({
         </Suspense>
       )}
 
-      <BlockFooter isLast={isLast} onNext={onDone} />
+      <BlockFooter isLast={isLast} onNext={onDone} onBack={onBack} />
     </>
   );
 };
